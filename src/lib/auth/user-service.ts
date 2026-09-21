@@ -22,13 +22,19 @@ export async function createUser(input: RegisterInput) {
   if (existingUser) throw new DuplicateEmailError();
 
   const passwordHash = await argon2.hash(input.password, hashOptions);
+  const agreedAt = new Date();
 
   try {
     return await prisma.user.create({
       data: {
         email: input.email,
         passwordHash,
+        name: input.name,
         nickname: input.nickname,
+        termsAgreedAt: agreedAt,
+        privacyAgreedAt: agreedAt,
+        marketingAgreed: input.marketingAgreed,
+        marketingAgreedAt: input.marketingAgreed ? agreedAt : null,
       },
       select: { id: true, email: true, nickname: true, createdAt: true },
     });

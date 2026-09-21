@@ -15,6 +15,7 @@ const password = z
 
 export const registerSchema = z
   .object({
+    name: z.string().trim().min(2, "이름은 2자 이상이어야 합니다.").max(50, "이름은 50자 이하여야 합니다."),
     email,
     password,
     passwordConfirm: z.string(),
@@ -30,6 +31,7 @@ export const registerSchema = z
     privacyAgreed: z.literal(true, {
       error: "개인정보 처리방침에 동의해 주세요.",
     }),
+    marketingAgreed: z.boolean().default(false),
   })
   .refine((data) => data.password === data.passwordConfirm, {
     message: "비밀번호가 일치하지 않습니다.",

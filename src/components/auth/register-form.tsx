@@ -1,17 +1,21 @@
 "use client";
 
 import Link from "next/link";
+import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import styles from "@/app/auth.module.css";
+import { signupAgreements } from "@/data/signup-agreements";
 
-type FieldErrors = Partial<Record<"email" | "password" | "passwordConfirm" | "nickname" | "termsAgreed" | "privacyAgreed", string[]>>;
+type AgreementName = (typeof signupAgreements)[number]["name"];
+type FieldErrors = Partial<Record<"name" | "email" | "password" | "passwordConfirm" | "nickname" | AgreementName, string[]>>;
 
 export function RegisterForm() {
   const router = useRouter();
   const [message, setMessage] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
   const [pending, setPending] = useState(false);
+  const [agreements, setAgreements] = useState<Record<AgreementName, boolean>>({ termsAgreed: false, privacyAgreed: false, marketingAgreed: false });
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -24,24 +28,26 @@ export function RegisterForm() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        name: formData.get("name"),
         email: formData.get("email"),
         password: formData.get("password"),
         passwordConfirm: formData.get("passwordConfirm"),
         nickname: formData.get("nickname"),
-        termsAgreed: formData.get("termsAgreed") === "on",
-        privacyAgreed: formData.get("privacyAgreed") === "on",
+        ...agreements,
       }),
     });
     const result = await response.json();
-    setPending(false);
-
     if (!response.ok) {
+      setPending(false);
       setMessage(result.message ?? "입력 내용을 확인해 주세요.");
       setErrors(result.errors ?? {});
       return;
     }
 
-    router.push("/login?registered=1");
+    const login = await signIn("credentials", { email: String(formData.get("email") ?? ""), password: String(formData.get("password") ?? ""), redirect: false });
+    setPending(false);
+    router.push(login?.ok ? "/onboarding" : "/login?registered=1&next=/onboarding");
+    router.refresh();
   }
 
   const fieldError = (name: keyof FieldErrors) => errors[name]?.[0];
@@ -49,6 +55,10 @@ export function RegisterForm() {
   return (
     <>
       <form className={styles.form} onSubmit={handleSubmit} noValidate>
+        <label htmlFor="name">이름</label>
+        <input id="name" name="name" autoComplete="name" minLength={2} maxLength={50} required aria-describedby={fieldError("name") ? "name-error" : undefined} />
+        {fieldError("name") && <p id="name-error" className={styles.fieldError}>{fieldError("name")}</p>}
+
         <label htmlFor="nickname">닉네임</label>
         <input id="nickname" name="nickname" autoComplete="nickname" minLength={2} maxLength={30} required aria-describedby={fieldError("nickname") ? "nickname-error" : undefined} />
         {fieldError("nickname") && <p id="nickname-error" className={styles.fieldError}>{fieldError("nickname")}</p>}
@@ -65,11 +75,9 @@ export function RegisterForm() {
         <input id="passwordConfirm" name="passwordConfirm" type="password" autoComplete="new-password" required aria-describedby={fieldError("passwordConfirm") ? "password-confirm-error" : undefined} />
         {fieldError("passwordConfirm") && <p id="password-confirm-error" className={styles.fieldError}>{fieldError("passwordConfirm")}</p>}
 
-        <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
-          <label style={{ display: "flex", alignItems: "flex-start", gap: 9, margin: 0, lineHeight: 1.5 }}><input name="termsAgreed" type="checkbox" required style={{ width: 18, height: 18, marginTop: 2, padding: 0, flex: "0 0 auto" }} /> <span>서비스 이용약관에 동의합니다. (필수)</span></label>
-          {fieldError("termsAgreed") && <p className={styles.fieldError}>{fieldError("termsAgreed")}</p>}
-          <label style={{ display: "flex", alignItems: "flex-start", gap: 9, margin: 0, lineHeight: 1.5 }}><input name="privacyAgreed" type="checkbox" required style={{ width: 18, height: 18, marginTop: 2, padding: 0, flex: "0 0 auto" }} /> <span>개인정보 처리방침에 동의합니다. (필수)</span></label>
-          {fieldError("privacyAgreed") && <p className={styles.fieldError}>{fieldError("privacyAgreed")}</p>}
+        <div style={{ display: "grid", gap: 9, marginTop: 14, paddingTop: 14, borderTop: "1px solid #e5efed" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 9, margin: 0, fontWeight: 800 }}><input type="checkbox" checked={signupAgreements.every(({ name }) => agreements[name])} onChange={(event) => setAgreements({ termsAgreed: event.target.checked, privacyAgreed: event.target.checked, marketingAgreed: event.target.checked })} style={{ width: 18, height: 18, padding: 0 }} /> <span>전체 동의</span></label>
+          {signupAgreements.map((agreement) => <div key={agreement.name}><label style={{ display: "flex", alignItems: "flex-start", gap: 9, margin: 0, lineHeight: 1.5 }}><input name={agreement.name} type="checkbox" checked={agreements[agreement.name]} required={agreement.required} onChange={(event) => setAgreements((current) => ({ ...current, [agreement.name]: event.target.checked }))} style={{ width: 18, height: 18, marginTop: 2, padding: 0, flex: "0 0 auto" }} /> <span>{agreement.label} ({agreement.required ? "필수" : "선택"})</span></label>{fieldError(agreement.name) && <p className={styles.fieldError}>{fieldError(agreement.name)}</p>}</div>)}
         </div>
 
         {message && <p className={styles.error} role="alert">{message}</p>}

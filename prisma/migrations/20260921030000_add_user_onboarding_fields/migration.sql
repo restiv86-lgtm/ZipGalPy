@@ -1,0 +1,7 @@
+ALTER TABLE "users"
+ADD COLUMN "name" VARCHAR(50),
+ADD COLUMN "emailVerifiedAt" TIMESTAMP(3),
+ADD COLUMN "termsAgreedAt" TIMESTAMP(3),
+ADD COLUMN "privacyAgreedAt" TIMESTAMP(3),
+ADD COLUMN "marketingAgreed" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN "marketingAgreedAt" TIMESTAMP(3);

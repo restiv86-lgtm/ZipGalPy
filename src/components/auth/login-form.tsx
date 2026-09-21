@@ -32,7 +32,7 @@ export function LoginForm() {
       return;
     }
 
-    router.push(POST_LOGIN_PATH);
+    router.push(searchParams.get("next") === "/onboarding" ? "/onboarding" : POST_LOGIN_PATH);
     router.refresh();
   }
 

@@ -22,7 +22,7 @@ export default async function DashboardPage() {
   const homes = await listHomes(session.user.id);
   return (
     <main className={styles.page}>
-      <header className={styles.header}><div className={styles.container}><Link href="/"><Logo /></Link><nav><Link href="/">홈페이지</Link><DashboardLogoutButton /></nav></div></header>
+      <header className={styles.header}><div className={styles.container}><Logo href="/" /><nav><Link href="/">홈페이지</Link><DashboardLogoutButton /></nav></div></header>
       <div className={`${styles.container} ${styles.content}`}>
         <section className={styles.welcome}><p className={styles.eyebrow}>MY ZIPGALPY</p><h1>안녕하세요, {session.user.name ?? "회원"}님</h1><p>내 집의 정보와 생활 기록을 한곳에서 관리하세요.</p></section>
         <section aria-labelledby="homes-title"><div className={styles.sectionHeading}><div><p className={styles.eyebrow}>MY HOMES</p><h2 id="homes-title">내 집</h2></div><Link className={styles.primaryLink} href="/home/new">+ 내 집 등록</Link></div>
