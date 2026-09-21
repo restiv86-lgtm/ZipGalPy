@@ -9,11 +9,17 @@ export function searchApartments(input: ApartmentSearchInput) {
   if (input.sido) where.sido = input.sido;
   if (input.sigungu) where.sigungu = input.sigungu;
   if (input.eupmyeondong) where.eupmyeondong = input.eupmyeondong;
-  if (input.q) where.OR = [
-    { name: { contains: input.q, mode: "insensitive" } },
-    { roadAddress: { contains: input.q, mode: "insensitive" } },
-    { jibunAddress: { contains: input.q, mode: "insensitive" } },
-  ];
+  const searchTokens = input.q?.split(/\s+/).filter(Boolean) ?? [];
+  if (searchTokens.length) where.AND = searchTokens.map((token) => ({
+    OR: [
+      { name: { contains: token, mode: "insensitive" } },
+      { roadAddress: { contains: token, mode: "insensitive" } },
+      { jibunAddress: { contains: token, mode: "insensitive" } },
+      { sido: { contains: token, mode: "insensitive" } },
+      { sigungu: { contains: token, mode: "insensitive" } },
+      { eupmyeondong: { contains: token, mode: "insensitive" } },
+    ],
+  }));
   return getPrisma().apartment.findMany({
     where,
     select: { id: true, name: true, sido: true, sigungu: true, eupmyeondong: true, roadAddress: true },
