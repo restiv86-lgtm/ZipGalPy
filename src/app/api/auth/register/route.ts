@@ -3,6 +3,11 @@ import { createUser, DuplicateEmailError } from "@/lib/auth/user-service";
 import { registerSchema } from "@/lib/auth/validation";
 
 export async function POST(request: Request) {
+  const origin = request.headers.get("origin");
+  if (origin && new URL(origin).host !== new URL(request.url).host) {
+    return NextResponse.json({ message: "허용되지 않은 요청입니다." }, { status: 403 });
+  }
+
   let body: unknown;
 
   try {

@@ -28,9 +28,9 @@ export async function createUser(input: RegisterInput) {
       data: {
         email: input.email,
         passwordHash,
-        name: input.name,
+        nickname: input.nickname,
       },
-      select: { id: true, email: true, name: true, createdAt: true },
+      select: { id: true, email: true, nickname: true, createdAt: true },
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
@@ -47,5 +47,5 @@ export async function authenticateUser(email: string, password: string) {
   const validPassword = await argon2.verify(user.passwordHash, password);
   if (!validPassword) return null;
 
-  return { id: user.id, email: user.email, name: user.name };
+  return { id: user.id, email: user.email, name: user.nickname };
 }

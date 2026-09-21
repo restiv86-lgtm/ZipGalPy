@@ -5,6 +5,7 @@ import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useState } from "react";
 import styles from "@/app/auth.module.css";
+import { POST_LOGIN_PATH } from "@/lib/auth/constants";
 
 export function LoginForm() {
   const router = useRouter();
@@ -31,7 +32,7 @@ export function LoginForm() {
       return;
     }
 
-    router.push("/account");
+    router.push(POST_LOGIN_PATH);
     router.refresh();
   }
 
@@ -46,7 +47,7 @@ export function LoginForm() {
         {error && <p className={styles.error} role="alert">{error}</p>}
         <button type="submit" disabled={pending}>{pending ? "로그인 중…" : "로그인"}</button>
       </form>
-      <p className={styles.switch}>아직 계정이 없으신가요? <Link href="/register">회원가입</Link></p>
+      <p className={styles.switch}>아직 계정이 없으신가요? <Link href="/signup">회원가입</Link></p>
     </>
   );
 }

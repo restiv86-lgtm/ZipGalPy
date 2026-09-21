@@ -18,11 +18,18 @@ export const registerSchema = z
     email,
     password,
     passwordConfirm: z.string(),
-    name: z
+    nickname: z
       .string()
       .trim()
-      .min(2, "이름 또는 닉네임은 2자 이상이어야 합니다.")
-      .max(30, "이름 또는 닉네임은 30자 이하여야 합니다."),
+      .min(2, "닉네임은 2자 이상이어야 합니다.")
+      .max(30, "닉네임은 30자 이하여야 합니다.")
+      .regex(/^[가-힣A-Za-z0-9_ ]+$/, "닉네임에는 한글, 영문, 숫자, 밑줄만 사용할 수 있습니다."),
+    termsAgreed: z.literal(true, {
+      error: "서비스 이용약관에 동의해 주세요.",
+    }),
+    privacyAgreed: z.literal(true, {
+      error: "개인정보 처리방침에 동의해 주세요.",
+    }),
   })
   .refine((data) => data.password === data.passwordConfirm, {
     message: "비밀번호가 일치하지 않습니다.",

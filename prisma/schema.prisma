@@ -11,7 +11,7 @@ model User {
   id           String   @id @default(cuid())
   email        String   @unique @db.VarChar(320)
   passwordHash String   @db.VarChar(255)
-  name         String   @db.VarChar(50)
+  nickname     String   @db.VarChar(30)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
