@@ -6,3 +6,5 @@ out/
 /src/generated/prisma/
 *.tsbuildinfo
 .DS_Store
+
+.vercel
