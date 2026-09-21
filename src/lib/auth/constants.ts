@@ -1,1 +1,1 @@
-export const POST_LOGIN_PATH = "/account";
+export const POST_LOGIN_PATH = "/dashboard";
