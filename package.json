@@ -13,7 +13,8 @@
     "prisma:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "apartments:import": "tsx scripts/import-apartments.ts"
   },
   "packageManager": "pnpm@11.19.0",
   "type": "module",
@@ -21,7 +22,9 @@
     "@prisma/adapter-pg": "7.10.0",
     "@prisma/client": "7.10.0",
     "argon2": "^0.45.1",
+    "csv-parse": "^7.0.2",
     "dotenv": "^18.0.1",
+    "iconv-lite": "^0.7.3",
     "next": "^16.3.5",
     "next-auth": "4.24.15",
     "pg": "^8.23.0",

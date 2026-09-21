@@ -8,21 +8,82 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique @db.VarChar(320)
-  passwordHash String   @db.VarChar(255)
-  name         String?  @db.VarChar(50)
-  nickname     String   @db.VarChar(30)
-  emailVerifiedAt DateTime?
-  termsAgreedAt DateTime?
-  privacyAgreedAt DateTime?
-  marketingAgreed Boolean @default(false)
-  marketingAgreedAt DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  homes        Home[]
+  id                   String             @id @default(cuid())
+  email                String             @unique @db.VarChar(320)
+  passwordHash         String             @db.VarChar(255)
+  name                 String?            @db.VarChar(50)
+  nickname             String             @db.VarChar(30)
+  emailVerifiedAt      DateTime?
+  termsAgreedAt        DateTime?
+  privacyAgreedAt      DateTime?
+  marketingAgreed      Boolean            @default(false)
+  marketingAgreedAt    DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  homes                Home[]
+  apartmentMemberships ApartmentMember[]
+  apartmentRequests    ApartmentRequest[]
 
   @@map("users")
+}
+
+model Apartment {
+  id              String            @id @default(cuid())
+  externalCode    String            @db.VarChar(80)
+  name            String            @db.VarChar(120)
+  sido            String            @db.VarChar(30)
+  sigungu         String            @db.VarChar(50)
+  eupmyeondong    String?           @db.VarChar(60)
+  roadAddress     String            @db.VarChar(240)
+  jibunAddress    String?           @db.VarChar(240)
+  dataSource      String            @db.VarChar(40)
+  sourceUpdatedAt DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  members         ApartmentMember[]
+
+  @@unique([dataSource, externalCode])
+  @@index([name])
+  @@index([sido, sigungu, eupmyeondong])
+  @@index([roadAddress])
+  @@map("apartments")
+}
+
+model ApartmentMember {
+  id          String    @id @default(cuid())
+  apartmentId String
+  userId      String
+  joinedAt    DateTime  @default(now())
+  apartment   Apartment @relation(fields: [apartmentId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([apartmentId, userId])
+  @@index([userId, joinedAt])
+  @@map("apartment_members")
+}
+
+enum ApartmentRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model ApartmentRequest {
+  id            String                 @id @default(cuid())
+  userId        String
+  sido          String                 @db.VarChar(30)
+  sigungu       String?                @db.VarChar(50)
+  eupmyeondong  String?                @db.VarChar(60)
+  apartmentName String                 @db.VarChar(120)
+  address       String?                @db.VarChar(240)
+  status        ApartmentRequestStatus @default(PENDING)
+  requestedAt   DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  user          User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, requestedAt])
+  @@index([status, requestedAt])
+  @@map("apartment_requests")
 }
 
 enum HousingType {
