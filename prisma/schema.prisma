@@ -226,6 +226,7 @@ model Home {
   items         HomeItem[]
   repairs       HomeRepair[]
   schedules     HomeSchedule[]
+  expenses      HomeExpense[]
 
   @@index([userId, createdAt])
   @@map("homes")
@@ -270,6 +271,7 @@ model HomeItem {
   marketplacePosts MarketplacePost[]
   repairs          HomeRepair[]
   schedules        HomeSchedule[]
+  expenses         HomeExpense[]
 
   @@index([homeId, status, createdAt])
   @@map("home_items")
@@ -312,6 +314,7 @@ model HomeRepair {
   home          Home           @relation(fields: [homeId], references: [id], onDelete: Cascade)
   homeItem      HomeItem?      @relation(fields: [homeItemId], references: [id], onDelete: SetNull)
   schedules     HomeSchedule[]
+  expenses      HomeExpense[]
 
   @@index([homeId, repairDate])
   @@index([homeItemId, repairDate])
@@ -347,4 +350,41 @@ model HomeSchedule {
   @@index([homeItemId, scheduledAt])
   @@index([repairId])
   @@map("home_schedules")
+}
+
+enum HomeExpenseCategory {
+  PURCHASE
+  REPAIR
+  MAINTENANCE
+  MANAGEMENT
+  UTILITY
+  CONTRACT
+  INSURANCE
+  TAX
+  OTHER
+}
+
+model HomeExpense {
+  id            String              @id @default(cuid())
+  homeId        String
+  homeItemId    String?
+  repairId      String?
+  sourceKey     String?             @unique @db.VarChar(180)
+  category      HomeExpenseCategory
+  title         String              @db.VarChar(120)
+  amount        Decimal             @db.Decimal(14, 0)
+  expenseDate   DateTime            @db.Date
+  paymentMethod String?             @db.VarChar(80)
+  memo          String?             @db.VarChar(2000)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  home          Home                @relation(fields: [homeId], references: [id], onDelete: Cascade)
+  homeItem      HomeItem?           @relation(fields: [homeItemId], references: [id], onDelete: SetNull)
+  repair        HomeRepair?         @relation(fields: [repairId], references: [id], onDelete: SetNull)
+
+  @@index([homeId, expenseDate])
+  @@index([homeId, category, expenseDate])
+  @@index([homeItemId])
+  @@index([repairId])
+  @@map("home_expenses")
 }

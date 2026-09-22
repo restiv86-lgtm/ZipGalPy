@@ -1,0 +1,10 @@
+CREATE TYPE "HomeExpenseCategory" AS ENUM ('PURCHASE','REPAIR','MAINTENANCE','MANAGEMENT','UTILITY','CONTRACT','INSURANCE','TAX','OTHER');
+CREATE TABLE "home_expenses" ("id" TEXT NOT NULL,"homeId" TEXT NOT NULL,"homeItemId" TEXT,"repairId" TEXT,"sourceKey" VARCHAR(180),"category" "HomeExpenseCategory" NOT NULL,"title" VARCHAR(120) NOT NULL,"amount" DECIMAL(14,0) NOT NULL,"expenseDate" DATE NOT NULL,"paymentMethod" VARCHAR(80),"memo" VARCHAR(2000),"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL,CONSTRAINT "home_expenses_pkey" PRIMARY KEY("id"),CONSTRAINT "home_expenses_amount_check" CHECK ("amount">=0));
+CREATE UNIQUE INDEX "home_expenses_sourceKey_key" ON "home_expenses"("sourceKey");
+CREATE INDEX "home_expenses_homeId_expenseDate_idx" ON "home_expenses"("homeId","expenseDate");
+CREATE INDEX "home_expenses_homeId_category_expenseDate_idx" ON "home_expenses"("homeId","category","expenseDate");
+CREATE INDEX "home_expenses_homeItemId_idx" ON "home_expenses"("homeItemId");
+CREATE INDEX "home_expenses_repairId_idx" ON "home_expenses"("repairId");
+ALTER TABLE "home_expenses" ADD CONSTRAINT "home_expenses_homeId_fkey" FOREIGN KEY("homeId") REFERENCES "homes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "home_expenses" ADD CONSTRAINT "home_expenses_homeItemId_fkey" FOREIGN KEY("homeItemId") REFERENCES "home_items"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "home_expenses" ADD CONSTRAINT "home_expenses_repairId_fkey" FOREIGN KEY("repairId") REFERENCES "home_repairs"("id") ON DELETE SET NULL ON UPDATE CASCADE;
