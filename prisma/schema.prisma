@@ -28,19 +28,21 @@ model User {
 }
 
 model Apartment {
-  id              String            @id @default(cuid())
-  externalCode    String            @db.VarChar(80)
-  name            String            @db.VarChar(120)
-  sido            String            @db.VarChar(30)
-  sigungu         String            @db.VarChar(50)
-  eupmyeondong    String?           @db.VarChar(60)
-  roadAddress     String            @db.VarChar(240)
-  jibunAddress    String?           @db.VarChar(240)
-  dataSource      String            @db.VarChar(40)
-  sourceUpdatedAt DateTime?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  members         ApartmentMember[]
+  id               String            @id @default(cuid())
+  externalCode     String            @db.VarChar(80)
+  name             String            @db.VarChar(120)
+  sido             String            @db.VarChar(30)
+  sigungu          String            @db.VarChar(50)
+  eupmyeondong     String?           @db.VarChar(60)
+  roadAddress      String            @db.VarChar(240)
+  jibunAddress     String?           @db.VarChar(240)
+  dataSource       String            @db.VarChar(40)
+  sourceUpdatedAt  DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  members          ApartmentMember[]
+  communityPosts   CommunityPost[]
+  marketplacePosts MarketplacePost[]
 
   @@unique([dataSource, externalCode])
   @@index([name])
@@ -50,16 +52,127 @@ model Apartment {
 }
 
 model ApartmentMember {
-  id          String    @id @default(cuid())
-  apartmentId String
-  userId      String
-  joinedAt    DateTime  @default(now())
-  apartment   Apartment @relation(fields: [apartmentId], references: [id], onDelete: Cascade)
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                String             @id @default(cuid())
+  apartmentId       String
+  userId            String
+  joinedAt          DateTime           @default(now())
+  apartment         Apartment          @relation(fields: [apartmentId], references: [id], onDelete: Cascade)
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  communityPosts    CommunityPost[]    @relation("CommunityPostAuthor")
+  communityComments CommunityComment[] @relation("CommunityCommentAuthor")
+  communityReports  CommunityReport[]  @relation("CommunityReportReporter")
+  marketplacePosts  MarketplacePost[]  @relation("MarketplaceSeller")
 
   @@unique([apartmentId, userId])
   @@index([userId, joinedAt])
   @@map("apartment_members")
+}
+
+enum CommunityPostCategory {
+  GENERAL
+  QUESTION
+  INFO
+  LOST_AND_FOUND
+}
+
+enum CommunityContentStatus {
+  ACTIVE
+  DELETED
+}
+
+enum CommunityReportReason {
+  SPAM_AD
+  ABUSE
+  INAPPROPRIATE
+  SUSPECTED_FRAUD
+  OTHER
+}
+
+model CommunityPost {
+  id             String                 @id @default(cuid())
+  apartmentId    String
+  authorMemberId String
+  category       CommunityPostCategory
+  title          String                 @db.VarChar(120)
+  content        String                 @db.VarChar(5000)
+  status         CommunityContentStatus @default(ACTIVE)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  apartment      Apartment              @relation(fields: [apartmentId], references: [id], onDelete: Cascade)
+  authorMember   ApartmentMember        @relation("CommunityPostAuthor", fields: [authorMemberId], references: [id], onDelete: Cascade)
+  comments       CommunityComment[]
+  reports        CommunityReport[]
+
+  @@index([apartmentId, status, createdAt])
+  @@index([authorMemberId])
+  @@map("community_posts")
+}
+
+model CommunityComment {
+  id             String                 @id @default(cuid())
+  postId         String
+  authorMemberId String
+  content        String                 @db.VarChar(1000)
+  status         CommunityContentStatus @default(ACTIVE)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  post           CommunityPost          @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorMember   ApartmentMember        @relation("CommunityCommentAuthor", fields: [authorMemberId], references: [id], onDelete: Cascade)
+  reports        CommunityReport[]
+
+  @@index([postId, status, createdAt])
+  @@index([authorMemberId])
+  @@map("community_comments")
+}
+
+model CommunityReport {
+  id               String                @id @default(cuid())
+  reporterMemberId String
+  postId           String?
+  commentId        String?
+  reason           CommunityReportReason
+  detail           String?               @db.VarChar(500)
+  createdAt        DateTime              @default(now())
+  reporterMember   ApartmentMember       @relation("CommunityReportReporter", fields: [reporterMemberId], references: [id], onDelete: Cascade)
+  post             CommunityPost?        @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment          CommunityComment?     @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([reporterMemberId, postId])
+  @@unique([reporterMemberId, commentId])
+  @@index([postId, createdAt])
+  @@index([commentId, createdAt])
+  @@map("community_reports")
+}
+
+enum MarketplacePostType {
+  SELL
+  GIVEAWAY
+}
+
+enum MarketplacePostStatus {
+  ACTIVE
+  RESERVED
+  COMPLETED
+  CANCELLED
+}
+
+model MarketplacePost {
+  id             String                @id @default(cuid())
+  apartmentId    String
+  sellerMemberId String
+  type           MarketplacePostType
+  title          String                @db.VarChar(120)
+  description    String                @db.VarChar(5000)
+  price          Int
+  status         MarketplacePostStatus @default(ACTIVE)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  apartment      Apartment             @relation(fields: [apartmentId], references: [id], onDelete: Cascade)
+  sellerMember   ApartmentMember       @relation("MarketplaceSeller", fields: [sellerMemberId], references: [id], onDelete: Cascade)
+
+  @@index([apartmentId, status, createdAt])
+  @@index([sellerMemberId])
+  @@map("marketplace_posts")
 }
 
 enum ApartmentRequestStatus {

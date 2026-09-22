@@ -1,0 +1,5 @@
+"use client";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import styles from "@/app/apartments/[id]/community/community.module.css";
+export function MarketplaceActions({apartmentId,postId}:{apartmentId:string;postId:string}){const router=useRouter();const [error,setError]=useState("");async function change(status:string){const r=await fetch(`/api/apartments/${apartmentId}/marketplace/${postId}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({status})});if(!r.ok){setError((await r.json()).message);return}router.refresh()}return <div><div className={styles.actions}><button className={styles.secondary} onClick={()=>change("ACTIVE")}>판매중</button><button className={styles.secondary} onClick={()=>change("RESERVED")}>예약중</button><button className={styles.primary} onClick={()=>change("COMPLETED")}>거래완료</button><button className={styles.danger} onClick={()=>change("CANCELLED")}>판매취소</button></div>{error&&<p className={styles.error} role="alert">{error}</p>}</div>}
