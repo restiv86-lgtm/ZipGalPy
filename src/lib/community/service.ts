@@ -71,13 +71,20 @@ export async function getMarketplacePost(userId: string, apartmentId: string, po
   return getPrisma().marketplacePost.findFirst({ where: { id: postId, apartmentId }, include: { sellerMember: { include: { user: { select: publicUserSelect } } }, apartment: { select: { name: true } } } });
 }
 
-export async function createMarketplacePost(userId: string, apartmentId: string, data: { type: MarketplacePostType; title: string; description: string; price: number }) {
+export async function createMarketplacePost(userId: string, apartmentId: string, data: { type: MarketplacePostType; title: string; description: string; price: number; sourceHomeItemId?: string }) {
   const member = await getMembership(userId, apartmentId);
   if (!member) return null;
+  if (data.sourceHomeItemId && !(await getPrisma().homeItem.findFirst({ where: { id: data.sourceHomeItemId, home: { userId } }, select: { id: true } }))) return null;
   return getPrisma().marketplacePost.create({ data: { ...data, apartmentId, sellerMemberId: member.id } });
 }
 
 export async function updateMarketplaceStatus(userId: string, apartmentId: string, postId: string, status: MarketplacePostStatus) {
-  const result = await getPrisma().marketplacePost.updateMany({ where: { id: postId, apartmentId, sellerMember: { userId } }, data: { status } });
-  return result.count === 1;
+  const prisma = getPrisma();
+  return prisma.$transaction(async (tx) => {
+    const post = await tx.marketplacePost.findFirst({ where: { id: postId, apartmentId, sellerMember: { userId } }, select: { id: true, type: true, sourceHomeItemId: true } });
+    if (!post) return false;
+    await tx.marketplacePost.update({ where: { id: post.id }, data: { status } });
+    if (status === "COMPLETED" && post.sourceHomeItemId) await tx.homeItem.updateMany({ where: { id: post.sourceHomeItemId, home: { userId } }, data: { status: post.type === "SELL" ? "SOLD" : "GIVEN_AWAY" } });
+    return true;
+  });
 }

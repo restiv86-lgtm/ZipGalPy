@@ -157,21 +157,24 @@ enum MarketplacePostStatus {
 }
 
 model MarketplacePost {
-  id             String                @id @default(cuid())
-  apartmentId    String
-  sellerMemberId String
-  type           MarketplacePostType
-  title          String                @db.VarChar(120)
-  description    String                @db.VarChar(5000)
-  price          Int
-  status         MarketplacePostStatus @default(ACTIVE)
-  createdAt      DateTime              @default(now())
-  updatedAt      DateTime              @updatedAt
-  apartment      Apartment             @relation(fields: [apartmentId], references: [id], onDelete: Cascade)
-  sellerMember   ApartmentMember       @relation("MarketplaceSeller", fields: [sellerMemberId], references: [id], onDelete: Cascade)
+  id               String                @id @default(cuid())
+  apartmentId      String
+  sellerMemberId   String
+  sourceHomeItemId String?
+  type             MarketplacePostType
+  title            String                @db.VarChar(120)
+  description      String                @db.VarChar(5000)
+  price            Int
+  status           MarketplacePostStatus @default(ACTIVE)
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  apartment        Apartment             @relation(fields: [apartmentId], references: [id], onDelete: Cascade)
+  sellerMember     ApartmentMember       @relation("MarketplaceSeller", fields: [sellerMemberId], references: [id], onDelete: Cascade)
+  sourceHomeItem   HomeItem?             @relation(fields: [sourceHomeItemId], references: [id], onDelete: SetNull)
 
   @@index([apartmentId, status, createdAt])
   @@index([sellerMemberId])
+  @@index([sourceHomeItemId])
   @@map("marketplace_posts")
 }
 
@@ -220,7 +223,62 @@ model Home {
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
   user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items         HomeItem[]
 
   @@index([userId, createdAt])
   @@map("homes")
+}
+
+enum HomeItemCategory {
+  APPLIANCE
+  FURNITURE
+  KITCHEN
+  HOUSEHOLD
+  DIGITAL
+  HOBBY
+  CHILDCARE
+  OTHER
+}
+
+enum HomeItemStatus {
+  USING
+  STORED
+  REPAIRING
+  SOLD
+  GIVEN_AWAY
+  DISPOSED
+}
+
+model HomeItem {
+  id               String            @id @default(cuid())
+  homeId           String
+  name             String            @db.VarChar(120)
+  category         HomeItemCategory
+  brand            String?           @db.VarChar(80)
+  modelName        String?           @db.VarChar(120)
+  purchaseDate     DateTime?         @db.Date
+  purchasePrice    Decimal?          @db.Decimal(14, 0)
+  warrantyUntil    DateTime?         @db.Date
+  memo             String?           @db.VarChar(2000)
+  status           HomeItemStatus    @default(USING)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  home             Home              @relation(fields: [homeId], references: [id], onDelete: Cascade)
+  images           HomeItemImage[]
+  marketplacePosts MarketplacePost[]
+
+  @@index([homeId, status, createdAt])
+  @@map("home_items")
+}
+
+model HomeItemImage {
+  id         String   @id @default(cuid())
+  homeItemId String
+  storageKey String   @db.VarChar(500)
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  homeItem   HomeItem @relation(fields: [homeItemId], references: [id], onDelete: Cascade)
+
+  @@index([homeItemId, sortOrder])
+  @@map("home_item_images")
 }
