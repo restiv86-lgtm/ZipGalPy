@@ -1,0 +1,5 @@
+CREATE TYPE "HomeContractType" AS ENUM ('LEASE','RENTAL','INSURANCE','INTERNET','SECURITY','MAINTENANCE','SUBSCRIPTION','OTHER');
+CREATE TYPE "HomeContractStatus" AS ENUM ('ACTIVE','TERMINATED');
+CREATE TABLE "home_contracts" ("id" TEXT NOT NULL,"homeId" TEXT NOT NULL,"type" "HomeContractType" NOT NULL,"title" VARCHAR(120) NOT NULL,"companyName" VARCHAR(120),"contractNumber" VARCHAR(120),"startDate" DATE,"endDate" DATE,"amount" DECIMAL(14,0),"reminderDays" INTEGER[] NOT NULL DEFAULT ARRAY[90,60,30,7]::INTEGER[],"memo" VARCHAR(2000),"status" "HomeContractStatus" NOT NULL DEFAULT 'ACTIVE',"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL,CONSTRAINT "home_contracts_pkey" PRIMARY KEY("id"),CONSTRAINT "home_contracts_amount_check" CHECK ("amount" IS NULL OR "amount">=0));
+CREATE INDEX "home_contracts_homeId_status_endDate_idx" ON "home_contracts"("homeId","status","endDate");
+ALTER TABLE "home_contracts" ADD CONSTRAINT "home_contracts_homeId_fkey" FOREIGN KEY("homeId") REFERENCES "homes"("id") ON DELETE CASCADE ON UPDATE CASCADE;

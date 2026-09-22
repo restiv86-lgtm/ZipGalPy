@@ -227,6 +227,7 @@ model Home {
   repairs       HomeRepair[]
   schedules     HomeSchedule[]
   expenses      HomeExpense[]
+  contracts     HomeContract[]
 
   @@index([userId, createdAt])
   @@map("homes")
@@ -387,4 +388,41 @@ model HomeExpense {
   @@index([homeItemId])
   @@index([repairId])
   @@map("home_expenses")
+}
+
+enum HomeContractType {
+  LEASE
+  RENTAL
+  INSURANCE
+  INTERNET
+  SECURITY
+  MAINTENANCE
+  SUBSCRIPTION
+  OTHER
+}
+
+enum HomeContractStatus {
+  ACTIVE
+  TERMINATED
+}
+
+model HomeContract {
+  id             String             @id @default(cuid())
+  homeId         String
+  type           HomeContractType
+  title          String             @db.VarChar(120)
+  companyName    String?            @db.VarChar(120)
+  contractNumber String?            @db.VarChar(120)
+  startDate      DateTime?          @db.Date
+  endDate        DateTime?          @db.Date
+  amount         Decimal?           @db.Decimal(14, 0)
+  reminderDays   Int[]              @default([90, 60, 30, 7])
+  memo           String?            @db.VarChar(2000)
+  status         HomeContractStatus @default(ACTIVE)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  home           Home               @relation(fields: [homeId], references: [id], onDelete: Cascade)
+
+  @@index([homeId, status, endDate])
+  @@map("home_contracts")
 }
