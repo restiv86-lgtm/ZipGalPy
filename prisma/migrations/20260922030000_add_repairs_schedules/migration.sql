@@ -1,0 +1,14 @@
+CREATE TYPE "HomeRepairType" AS ENUM ('REPAIR','INSPECTION','CLEANING','REPLACEMENT','OTHER');
+CREATE TYPE "HomeScheduleType" AS ENUM ('INSPECTION','WARRANTY','REPAIR','CONTRACT','PAYMENT','OTHER');
+CREATE TABLE "home_repairs" ("id" TEXT NOT NULL,"homeId" TEXT NOT NULL,"homeItemId" TEXT,"type" "HomeRepairType" NOT NULL,"title" VARCHAR(120) NOT NULL,"description" VARCHAR(3000) NOT NULL,"repairDate" DATE NOT NULL,"cost" DECIMAL(14,0),"companyName" VARCHAR(120),"nextCheckDate" DATE,"memo" VARCHAR(2000),"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL,CONSTRAINT "home_repairs_pkey" PRIMARY KEY("id"),CONSTRAINT "home_repairs_cost_check" CHECK ("cost" IS NULL OR "cost">=0));
+CREATE TABLE "home_schedules" ("id" TEXT NOT NULL,"homeId" TEXT NOT NULL,"homeItemId" TEXT,"repairId" TEXT,"title" VARCHAR(120) NOT NULL,"scheduledAt" TIMESTAMP(3) NOT NULL,"type" "HomeScheduleType" NOT NULL,"completed" BOOLEAN NOT NULL DEFAULT false,"memo" VARCHAR(2000),"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL,CONSTRAINT "home_schedules_pkey" PRIMARY KEY("id"));
+CREATE INDEX "home_repairs_homeId_repairDate_idx" ON "home_repairs"("homeId","repairDate");
+CREATE INDEX "home_repairs_homeItemId_repairDate_idx" ON "home_repairs"("homeItemId","repairDate");
+CREATE INDEX "home_schedules_homeId_completed_scheduledAt_idx" ON "home_schedules"("homeId","completed","scheduledAt");
+CREATE INDEX "home_schedules_homeItemId_scheduledAt_idx" ON "home_schedules"("homeItemId","scheduledAt");
+CREATE INDEX "home_schedules_repairId_idx" ON "home_schedules"("repairId");
+ALTER TABLE "home_repairs" ADD CONSTRAINT "home_repairs_homeId_fkey" FOREIGN KEY("homeId") REFERENCES "homes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "home_repairs" ADD CONSTRAINT "home_repairs_homeItemId_fkey" FOREIGN KEY("homeItemId") REFERENCES "home_items"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "home_schedules" ADD CONSTRAINT "home_schedules_homeId_fkey" FOREIGN KEY("homeId") REFERENCES "homes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "home_schedules" ADD CONSTRAINT "home_schedules_homeItemId_fkey" FOREIGN KEY("homeItemId") REFERENCES "home_items"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "home_schedules" ADD CONSTRAINT "home_schedules_repairId_fkey" FOREIGN KEY("repairId") REFERENCES "home_repairs"("id") ON DELETE SET NULL ON UPDATE CASCADE;

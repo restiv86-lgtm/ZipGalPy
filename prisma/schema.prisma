@@ -211,19 +211,21 @@ enum HousingType {
 }
 
 model Home {
-  id            String      @id @default(cuid())
+  id            String         @id @default(cuid())
   userId        String
-  name          String      @db.VarChar(40)
-  address       String      @db.VarChar(200)
-  addressDetail String?     @db.VarChar(100)
+  name          String         @db.VarChar(40)
+  address       String         @db.VarChar(200)
+  addressDetail String?        @db.VarChar(100)
   housingType   HousingType
   area          Float?
   builtYear     Int?
-  memo          String?     @db.VarChar(1000)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  memo          String?        @db.VarChar(1000)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   items         HomeItem[]
+  repairs       HomeRepair[]
+  schedules     HomeSchedule[]
 
   @@index([userId, createdAt])
   @@map("homes")
@@ -266,6 +268,8 @@ model HomeItem {
   home             Home              @relation(fields: [homeId], references: [id], onDelete: Cascade)
   images           HomeItemImage[]
   marketplacePosts MarketplacePost[]
+  repairs          HomeRepair[]
+  schedules        HomeSchedule[]
 
   @@index([homeId, status, createdAt])
   @@map("home_items")
@@ -281,4 +285,66 @@ model HomeItemImage {
 
   @@index([homeItemId, sortOrder])
   @@map("home_item_images")
+}
+
+enum HomeRepairType {
+  REPAIR
+  INSPECTION
+  CLEANING
+  REPLACEMENT
+  OTHER
+}
+
+model HomeRepair {
+  id            String         @id @default(cuid())
+  homeId        String
+  homeItemId    String?
+  type          HomeRepairType
+  title         String         @db.VarChar(120)
+  description   String         @db.VarChar(3000)
+  repairDate    DateTime       @db.Date
+  cost          Decimal?       @db.Decimal(14, 0)
+  companyName   String?        @db.VarChar(120)
+  nextCheckDate DateTime?      @db.Date
+  memo          String?        @db.VarChar(2000)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  home          Home           @relation(fields: [homeId], references: [id], onDelete: Cascade)
+  homeItem      HomeItem?      @relation(fields: [homeItemId], references: [id], onDelete: SetNull)
+  schedules     HomeSchedule[]
+
+  @@index([homeId, repairDate])
+  @@index([homeItemId, repairDate])
+  @@map("home_repairs")
+}
+
+enum HomeScheduleType {
+  INSPECTION
+  WARRANTY
+  REPAIR
+  CONTRACT
+  PAYMENT
+  OTHER
+}
+
+model HomeSchedule {
+  id          String           @id @default(cuid())
+  homeId      String
+  homeItemId  String?
+  repairId    String?
+  title       String           @db.VarChar(120)
+  scheduledAt DateTime
+  type        HomeScheduleType
+  completed   Boolean          @default(false)
+  memo        String?          @db.VarChar(2000)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  home        Home             @relation(fields: [homeId], references: [id], onDelete: Cascade)
+  homeItem    HomeItem?        @relation(fields: [homeItemId], references: [id], onDelete: SetNull)
+  repair      HomeRepair?      @relation(fields: [repairId], references: [id], onDelete: SetNull)
+
+  @@index([homeId, completed, scheduledAt])
+  @@index([homeItemId, scheduledAt])
+  @@index([repairId])
+  @@map("home_schedules")
 }
