@@ -5,6 +5,7 @@ export const homeFeatureRoutes = {
   schedules: "schedules",
   expenses: "expenses",
   contracts: "contracts",
+  documents: "documents",
 } as const;
 
 export type HomeFeature = keyof typeof homeFeatureRoutes;

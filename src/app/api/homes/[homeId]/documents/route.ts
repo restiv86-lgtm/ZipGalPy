@@ -1,0 +1,5 @@
+import { NextResponse } from "next/server";
+import { getAuthenticatedUserId, isSameOrigin } from "@/lib/community/security";
+import { createDocument } from "@/lib/home-document/service";
+import { documentSchema } from "@/lib/home-document/validation";
+export async function POST(request: Request, context: RouteContext<"/api/homes/[homeId]/documents">) { const userId = await getAuthenticatedUserId(); if (!userId) return NextResponse.json({ message: "로그인이 필요합니다." }, { status: 401 }); if (!isSameOrigin(request)) return NextResponse.json({ message: "허용되지 않은 요청입니다." }, { status: 403 }); const parsed = documentSchema.safeParse(await request.json().catch(() => null)); if (!parsed.success) return NextResponse.json({ message: parsed.error.issues[0]?.message ?? "입력값을 확인해 주세요." }, { status: 400 }); const { homeId } = await context.params; const document = await createDocument(userId, homeId, parsed.data); return document ? NextResponse.json({ document }, { status: 201 }) : NextResponse.json({ message: "접근 권한이 없거나 연결 정보를 확인해 주세요." }, { status: 403 }); }

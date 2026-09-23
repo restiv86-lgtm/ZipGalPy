@@ -13,10 +13,10 @@ const featureLabels: Record<HomeFeature, string> = {
   schedules: "일정",
   expenses: "비용",
   contracts: "계약",
+  documents: "문서",
 };
 
 const preparedFeatures: Record<string, string> = {
-  documents: "문서",
   ai: "AI 집 관리",
 };
 

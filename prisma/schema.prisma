@@ -228,6 +228,7 @@ model Home {
   schedules     HomeSchedule[]
   expenses      HomeExpense[]
   contracts     HomeContract[]
+  documents     HomeDocument[]
 
   @@index([userId, createdAt])
   @@map("homes")
@@ -273,6 +274,7 @@ model HomeItem {
   repairs          HomeRepair[]
   schedules        HomeSchedule[]
   expenses         HomeExpense[]
+  documents        HomeDocument[]
 
   @@index([homeId, status, createdAt])
   @@map("home_items")
@@ -422,7 +424,50 @@ model HomeContract {
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
   home           Home               @relation(fields: [homeId], references: [id], onDelete: Cascade)
+  documents      HomeDocument[]
 
   @@index([homeId, status, endDate])
   @@map("home_contracts")
+}
+
+enum HomeDocumentType {
+  CONTRACT
+  WARRANTY
+  RECEIPT
+  MANUAL
+  INSURANCE
+  TAX
+  CERTIFICATE
+  OTHER
+}
+
+enum HomeDocumentStatus {
+  ACTIVE
+  EXPIRED
+  ARCHIVED
+}
+
+model HomeDocument {
+  id             String             @id @default(cuid())
+  homeId         String
+  homeItemId     String?
+  contractId     String?
+  type           HomeDocumentType
+  title          String             @db.VarChar(120)
+  documentNumber String?            @db.VarChar(120)
+  issuer         String?            @db.VarChar(120)
+  issuedDate     DateTime?          @db.Date
+  expiresAt      DateTime?          @db.Date
+  memo           String?            @db.VarChar(2000)
+  status         HomeDocumentStatus @default(ACTIVE)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  home           Home               @relation(fields: [homeId], references: [id], onDelete: Cascade)
+  homeItem       HomeItem?          @relation(fields: [homeItemId], references: [id], onDelete: SetNull)
+  contract       HomeContract?      @relation(fields: [contractId], references: [id], onDelete: SetNull)
+
+  @@index([homeId, status, expiresAt])
+  @@index([homeItemId])
+  @@index([contractId])
+  @@map("home_documents")
 }
