@@ -57,3 +57,5 @@
 @media(max-width:375px){
   .cards article,.cards article:last-child{min-height:253px}
 }
+
+.beta-notice{margin:-12px 0 20px;color:#466963;font-size:14px}.beta-notice b{color:#087f72}.foot small{max-width:145px;color:#8a9b97;line-height:1.5}
