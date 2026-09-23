@@ -2,6 +2,7 @@ import type { CommunityPostCategory, MarketplacePostStatus, MarketplacePostType 
 import { getPrisma } from "@/lib/prisma";
 
 export const publicUserSelect = { nickname: true } as const;
+const withdrawnMember = { userId: "", user: { nickname: "탈퇴한 사용자" } } as const;
 
 export async function getMembership(userId: string, apartmentId: string) {
   return getPrisma().apartmentMember.findUnique({
@@ -19,17 +20,19 @@ export async function getCommunitySummary(userId: string, apartmentId: string) {
     prisma.communityPost.findMany({ where: { apartmentId, status: "ACTIVE" }, orderBy: { createdAt: "desc" }, take: 5, include: { authorMember: { include: { user: { select: publicUserSelect } } }, _count: { select: { comments: { where: { status: "ACTIVE" } } } } } }),
     prisma.marketplacePost.findMany({ where: { apartmentId, status: { not: "CANCELLED" } }, orderBy: { createdAt: "desc" }, take: 4, include: { sellerMember: { include: { user: { select: publicUserSelect } } } } }),
   ]);
-  return { membership, memberCount, posts, marketplace };
+  return { membership, memberCount, posts: posts.map((post) => ({ ...post, authorMember: post.authorMember ?? withdrawnMember })), marketplace: marketplace.map((item) => ({ ...item, sellerMember: item.sellerMember ?? withdrawnMember })) };
 }
 
 export async function listPosts(userId: string, apartmentId: string, category?: CommunityPostCategory) {
   if (!(await getMembership(userId, apartmentId))) return null;
-  return getPrisma().communityPost.findMany({ where: { apartmentId, status: "ACTIVE", ...(category ? { category } : {}) }, orderBy: { createdAt: "desc" }, include: { authorMember: { include: { user: { select: publicUserSelect } } }, _count: { select: { comments: { where: { status: "ACTIVE" } } } } } });
+  const posts = await getPrisma().communityPost.findMany({ where: { apartmentId, status: "ACTIVE", ...(category ? { category } : {}) }, orderBy: { createdAt: "desc" }, include: { authorMember: { include: { user: { select: publicUserSelect } } }, _count: { select: { comments: { where: { status: "ACTIVE" } } } } } });
+  return posts.map((post) => ({ ...post, authorMember: post.authorMember ?? withdrawnMember }));
 }
 
 export async function getPost(userId: string, apartmentId: string, postId: string) {
   if (!(await getMembership(userId, apartmentId))) return null;
-  return getPrisma().communityPost.findFirst({ where: { id: postId, apartmentId, status: "ACTIVE" }, include: { authorMember: { include: { user: { select: publicUserSelect } } }, comments: { where: { status: "ACTIVE" }, orderBy: { createdAt: "asc" }, include: { authorMember: { include: { user: { select: publicUserSelect } } } } } } });
+  const post = await getPrisma().communityPost.findFirst({ where: { id: postId, apartmentId, status: "ACTIVE" }, include: { authorMember: { include: { user: { select: publicUserSelect } } }, comments: { where: { status: "ACTIVE" }, orderBy: { createdAt: "asc" }, include: { authorMember: { include: { user: { select: publicUserSelect } } } } } } });
+  return post ? { ...post, authorMember: post.authorMember ?? withdrawnMember, comments: post.comments.map((comment) => ({ ...comment, authorMember: comment.authorMember ?? withdrawnMember })) } : null;
 }
 
 export async function createPost(userId: string, apartmentId: string, data: { category: CommunityPostCategory; title: string; content: string }) {
@@ -63,12 +66,14 @@ export async function deleteOwnedComment(userId: string, apartmentId: string, po
 
 export async function listMarketplace(userId: string, apartmentId: string, filters?: { type?: MarketplacePostType; status?: MarketplacePostStatus }) {
   if (!(await getMembership(userId, apartmentId))) return null;
-  return getPrisma().marketplacePost.findMany({ where: { apartmentId, ...(filters?.type ? { type: filters.type } : {}), ...(filters?.status ? { status: filters.status } : { status: { not: "CANCELLED" } }) }, orderBy: { createdAt: "desc" }, include: { sellerMember: { include: { user: { select: publicUserSelect } } } } });
+  const posts = await getPrisma().marketplacePost.findMany({ where: { apartmentId, ...(filters?.type ? { type: filters.type } : {}), ...(filters?.status ? { status: filters.status } : { status: { not: "CANCELLED" } }) }, orderBy: { createdAt: "desc" }, include: { sellerMember: { include: { user: { select: publicUserSelect } } } } });
+  return posts.map((post) => ({ ...post, sellerMember: post.sellerMember ?? withdrawnMember }));
 }
 
 export async function getMarketplacePost(userId: string, apartmentId: string, postId: string) {
   if (!(await getMembership(userId, apartmentId))) return null;
-  return getPrisma().marketplacePost.findFirst({ where: { id: postId, apartmentId }, include: { sellerMember: { include: { user: { select: publicUserSelect } } }, apartment: { select: { name: true } } } });
+  const post = await getPrisma().marketplacePost.findFirst({ where: { id: postId, apartmentId }, include: { sellerMember: { include: { user: { select: publicUserSelect } } }, apartment: { select: { name: true } } } });
+  return post ? { ...post, sellerMember: post.sellerMember ?? withdrawnMember } : null;
 }
 
 export async function createMarketplacePost(userId: string, apartmentId: string, data: { type: MarketplacePostType; title: string; description: string; price: number; sourceHomeItemId?: string }) {

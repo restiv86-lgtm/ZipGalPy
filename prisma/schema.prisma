@@ -18,13 +18,20 @@ model User {
   privacyAgreedAt      DateTime?
   marketingAgreed      Boolean            @default(false)
   marketingAgreedAt    DateTime?
+  role                 UserRole           @default(USER)
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
   homes                Home[]
   apartmentMemberships ApartmentMember[]
   apartmentRequests    ApartmentRequest[]
+  handledReports       CommunityReport[]  @relation("CommunityReportHandler")
 
   @@map("users")
+}
+
+enum UserRole {
+  USER
+  ADMIN
 }
 
 model Apartment {
@@ -88,10 +95,17 @@ enum CommunityReportReason {
   OTHER
 }
 
+enum CommunityReportStatus {
+  PENDING
+  REVIEWED
+  DISMISSED
+  ACTIONED
+}
+
 model CommunityPost {
   id             String                 @id @default(cuid())
   apartmentId    String
-  authorMemberId String
+  authorMemberId String?
   category       CommunityPostCategory
   title          String                 @db.VarChar(120)
   content        String                 @db.VarChar(5000)
@@ -99,7 +113,7 @@ model CommunityPost {
   createdAt      DateTime               @default(now())
   updatedAt      DateTime               @updatedAt
   apartment      Apartment              @relation(fields: [apartmentId], references: [id], onDelete: Cascade)
-  authorMember   ApartmentMember        @relation("CommunityPostAuthor", fields: [authorMemberId], references: [id], onDelete: Cascade)
+  authorMember   ApartmentMember?       @relation("CommunityPostAuthor", fields: [authorMemberId], references: [id], onDelete: SetNull)
   comments       CommunityComment[]
   reports        CommunityReport[]
 
@@ -111,13 +125,13 @@ model CommunityPost {
 model CommunityComment {
   id             String                 @id @default(cuid())
   postId         String
-  authorMemberId String
+  authorMemberId String?
   content        String                 @db.VarChar(1000)
   status         CommunityContentStatus @default(ACTIVE)
   createdAt      DateTime               @default(now())
   updatedAt      DateTime               @updatedAt
   post           CommunityPost          @relation(fields: [postId], references: [id], onDelete: Cascade)
-  authorMember   ApartmentMember        @relation("CommunityCommentAuthor", fields: [authorMemberId], references: [id], onDelete: Cascade)
+  authorMember   ApartmentMember?       @relation("CommunityCommentAuthor", fields: [authorMemberId], references: [id], onDelete: SetNull)
   reports        CommunityReport[]
 
   @@index([postId, status, createdAt])
@@ -127,13 +141,18 @@ model CommunityComment {
 
 model CommunityReport {
   id               String                @id @default(cuid())
-  reporterMemberId String
+  reporterMemberId String?
   postId           String?
   commentId        String?
   reason           CommunityReportReason
   detail           String?               @db.VarChar(500)
+  status           CommunityReportStatus @default(PENDING)
+  handledAt        DateTime?
+  handledById      String?
+  adminMemo        String?               @db.VarChar(1000)
   createdAt        DateTime              @default(now())
-  reporterMember   ApartmentMember       @relation("CommunityReportReporter", fields: [reporterMemberId], references: [id], onDelete: Cascade)
+  reporterMember   ApartmentMember?      @relation("CommunityReportReporter", fields: [reporterMemberId], references: [id], onDelete: SetNull)
+  handledBy        User?                  @relation("CommunityReportHandler", fields: [handledById], references: [id], onDelete: SetNull)
   post             CommunityPost?        @relation(fields: [postId], references: [id], onDelete: Cascade)
   comment          CommunityComment?     @relation(fields: [commentId], references: [id], onDelete: Cascade)
 
@@ -141,6 +160,8 @@ model CommunityReport {
   @@unique([reporterMemberId, commentId])
   @@index([postId, createdAt])
   @@index([commentId, createdAt])
+  @@index([status, createdAt])
+  @@index([handledById])
   @@map("community_reports")
 }
 
@@ -159,7 +180,7 @@ enum MarketplacePostStatus {
 model MarketplacePost {
   id               String                @id @default(cuid())
   apartmentId      String
-  sellerMemberId   String
+  sellerMemberId   String?
   sourceHomeItemId String?
   type             MarketplacePostType
   title            String                @db.VarChar(120)
@@ -169,7 +190,7 @@ model MarketplacePost {
   createdAt        DateTime              @default(now())
   updatedAt        DateTime              @updatedAt
   apartment        Apartment             @relation(fields: [apartmentId], references: [id], onDelete: Cascade)
-  sellerMember     ApartmentMember       @relation("MarketplaceSeller", fields: [sellerMemberId], references: [id], onDelete: Cascade)
+  sellerMember     ApartmentMember?      @relation("MarketplaceSeller", fields: [sellerMemberId], references: [id], onDelete: SetNull)
   sourceHomeItem   HomeItem?             @relation(fields: [sourceHomeItemId], references: [id], onDelete: SetNull)
 
   @@index([apartmentId, status, createdAt])
