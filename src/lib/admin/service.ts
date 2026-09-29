@@ -1,28 +1,17 @@
 import type { CommunityReportStatus } from "@/generated/prisma/client";
 import { getPrisma } from "@/lib/prisma";
-
-export async function getAdminDashboard() {
-  const prisma = getPrisma();
-  const [users, homes, apartmentMembers, posts, marketplacePosts, pendingReports, reports] = await Promise.all([
-    prisma.user.count(), prisma.home.count(), prisma.apartmentMember.count(),
-    prisma.communityPost.count(), prisma.marketplacePost.count(),
-    prisma.communityReport.count({ where: { status: "PENDING" } }),
-    prisma.communityReport.findMany({
-      orderBy: { createdAt: "desc" }, take: 100,
-      include: {
-        reporterMember: { include: { user: { select: { nickname: true } } } },
-        post: { select: { id: true, title: true, apartmentId: true } },
-        comment: { select: { id: true, content: true, post: { select: { apartmentId: true, title: true } } } },
-        handledBy: { select: { nickname: true } },
-      },
-    }),
-  ]);
-  return { counts: { users, homes, apartmentMembers, posts, marketplacePosts, pendingReports }, reports };
-}
-
-export async function handleReport(adminId: string, reportId: string, status: CommunityReportStatus, adminMemo: string | null) {
-  return getPrisma().communityReport.updateMany({
-    where: { id: reportId },
-    data: { status, adminMemo, handledById: adminId, handledAt: new Date() },
-  });
-}
+export const ADMIN_PAGE_SIZE=20;
+function paging(page:number){const safe=Number.isFinite(page)&&page>0?Math.floor(page):1;return{page:safe,skip:(safe-1)*ADMIN_PAGE_SIZE,take:ADMIN_PAGE_SIZE}}
+export async function getAdminDashboard(){const p=getPrisma();const[users,homes,apartmentMembers,posts,marketplacePosts,pendingReports]=await Promise.all([p.user.count(),p.home.count(),p.apartmentMember.count(),p.communityPost.count(),p.marketplacePost.count(),p.communityReport.count({where:{status:"PENDING"}})]);return{users,homes,apartmentMembers,posts,marketplacePosts,pendingReports}}
+export async function listAdminUsers(page:number,query:string){const p=getPrisma(),pg=paging(page),q=query.trim(),where=q?{OR:[{email:{contains:q,mode:"insensitive" as const}},{nickname:{contains:q,mode:"insensitive" as const}},{name:{contains:q,mode:"insensitive" as const}}]}:{};const[total,items]=await Promise.all([p.user.count({where}),p.user.findMany({where,skip:pg.skip,take:pg.take,orderBy:[{createdAt:"desc"},{id:"desc"}],select:{id:true,createdAt:true,name:true,nickname:true,email:true,role:true,_count:{select:{homes:true,apartmentMemberships:true}}}})]);return{...pg,total,items}}
+export function getAdminUserDetail(id:string){return getPrisma().user.findUnique({where:{id},select:{id:true,createdAt:true,updatedAt:true,name:true,nickname:true,email:true,role:true,_count:{select:{homes:true,apartmentMemberships:true}},apartmentMemberships:{select:{_count:{select:{communityPosts:true,communityComments:true,marketplacePosts:true}}}}}})}
+export async function listAdminHomes(page:number,query:string){const p=getPrisma(),pg=paging(page),q=query.trim(),where=q?{OR:[{name:{contains:q,mode:"insensitive" as const}},{user:{nickname:{contains:q,mode:"insensitive" as const}}},{user:{email:{contains:q,mode:"insensitive" as const}}}]}:{};const[total,items]=await Promise.all([p.home.count({where}),p.home.findMany({where,skip:pg.skip,take:pg.take,orderBy:[{createdAt:"desc"},{id:"desc"}],select:{id:true,name:true,housingType:true,createdAt:true,user:{select:{nickname:true,email:true}}}})]);return{...pg,total,items}}
+export function getAdminHomeDetail(id:string){return getPrisma().home.findUnique({where:{id},select:{id:true,name:true,housingType:true,area:true,builtYear:true,createdAt:true,user:{select:{id:true,nickname:true,email:true}},_count:{select:{items:true,repairs:true,schedules:true,expenses:true,contracts:true,documents:true}}}})}
+export async function listAdminApartmentMembers(page:number,query:string){const p=getPrisma(),pg=paging(page),q=query.trim(),where=q?{OR:[{apartment:{name:{contains:q,mode:"insensitive" as const}}},{user:{nickname:{contains:q,mode:"insensitive" as const}}},{user:{email:{contains:q,mode:"insensitive" as const}}}]}:{};const[total,items]=await Promise.all([p.apartmentMember.count({where}),p.apartmentMember.findMany({where,skip:pg.skip,take:pg.take,orderBy:[{joinedAt:"desc"},{id:"desc"}],select:{id:true,joinedAt:true,user:{select:{id:true,nickname:true,email:true}},apartment:{select:{id:true,name:true,sido:true,sigungu:true}}}})]);return{...pg,total,items}}
+export async function listAdminPosts(page:number,query:string){const p=getPrisma(),pg=paging(page),q=query.trim(),where=q?{OR:[{title:{contains:q,mode:"insensitive" as const}},{apartment:{name:{contains:q,mode:"insensitive" as const}}}]}:{};const[total,items]=await Promise.all([p.communityPost.count({where}),p.communityPost.findMany({where,skip:pg.skip,take:pg.take,orderBy:[{createdAt:"desc"},{id:"desc"}],select:{id:true,category:true,title:true,status:true,createdAt:true,apartment:{select:{name:true}},authorMember:{select:{user:{select:{nickname:true}}}},_count:{select:{comments:true,reports:true}}}})]);return{...pg,total,items}}
+export function getAdminPostDetail(id:string){return getPrisma().communityPost.findUnique({where:{id},select:{id:true,category:true,title:true,content:true,status:true,createdAt:true,updatedAt:true,apartment:{select:{id:true,name:true}},authorMember:{select:{user:{select:{nickname:true}}}},comments:{orderBy:{createdAt:"asc"},select:{id:true,content:true,status:true,createdAt:true,authorMember:{select:{user:{select:{nickname:true}}}},_count:{select:{reports:true}}}},_count:{select:{reports:true}}}})}
+export async function listAdminMarketplace(page:number,query:string){const p=getPrisma(),pg=paging(page),q=query.trim(),where=q?{OR:[{title:{contains:q,mode:"insensitive" as const}},{apartment:{name:{contains:q,mode:"insensitive" as const}}}]}:{};const[total,items]=await Promise.all([p.marketplacePost.count({where}),p.marketplacePost.findMany({where,skip:pg.skip,take:pg.take,orderBy:[{createdAt:"desc"},{id:"desc"}],select:{id:true,type:true,title:true,price:true,status:true,createdAt:true,apartment:{select:{name:true}},sellerMember:{select:{user:{select:{nickname:true}}}}}})]);return{...pg,total,items}}
+export function getAdminMarketplaceDetail(id:string){return getPrisma().marketplacePost.findUnique({where:{id},select:{id:true,type:true,title:true,description:true,price:true,status:true,createdAt:true,updatedAt:true,apartment:{select:{id:true,name:true}},sellerMember:{select:{user:{select:{nickname:true}}}}}})}
+export async function listAdminReports(page:number,status?:CommunityReportStatus){const p=getPrisma(),pg=paging(page),where=status?{status}:{};const[total,items]=await Promise.all([p.communityReport.count({where}),p.communityReport.findMany({where,skip:pg.skip,take:pg.take,orderBy:[{createdAt:"desc"},{id:"desc"}],select:{id:true,reason:true,detail:true,status:true,createdAt:true,reporterMember:{select:{user:{select:{nickname:true}}}},post:{select:{title:true,apartment:{select:{name:true}}}},comment:{select:{content:true,post:{select:{title:true,apartment:{select:{name:true}}}}}}}})]);return{...pg,total,items}}
+export function getAdminReportDetail(id:string){return getPrisma().communityReport.findUnique({where:{id},select:{id:true,reason:true,detail:true,status:true,createdAt:true,handledAt:true,adminMemo:true,reporterMember:{select:{user:{select:{nickname:true}}}},handledBy:{select:{nickname:true}},post:{select:{id:true,title:true,content:true,apartment:{select:{id:true,name:true}}}},comment:{select:{id:true,content:true,post:{select:{id:true,title:true,apartment:{select:{id:true,name:true}}}}}}}})}
+export async function handleReport(adminId:string,reportId:string,status:CommunityReportStatus,adminMemo:string|null){return getPrisma().communityReport.updateMany({where:{id:reportId},data:{status,adminMemo,handledById:adminId,handledAt:new Date()}})}
