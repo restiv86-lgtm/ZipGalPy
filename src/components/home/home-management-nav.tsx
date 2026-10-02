@@ -17,8 +17,6 @@ export function HomeManagementNav({ homeId, homeName, current, listHref, listLab
       <nav className={styles.breadcrumb} aria-label="현재 위치">
         <Link href={`/dashboard?homeId=${homeId}`}>Dashboard</Link>
         <span aria-hidden="true">›</span>
-        <Link href={`/home/${homeId}/edit`}>{homeName}</Link>
-        <span aria-hidden="true">›</span>
         <span aria-current="page">{current}</span>
       </nav>
       <div className={styles.actions}>

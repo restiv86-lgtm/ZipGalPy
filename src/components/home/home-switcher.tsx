@@ -22,7 +22,7 @@ export function HomeSwitcher({ currentHomeId, homes, hideOnItemNew = false }: Ho
   }
 
   return (
-    <label style={{ display: "grid", gap: 6, marginTop: 14, maxWidth: 320, color: "#356159", fontSize: 14, fontWeight: 750 }}>
+    <label style={{ display: "grid", gap: 8, marginTop: 9, width: "100%", color: "#193534", fontFamily: "inherit", fontSize: 14, fontWeight: 750 }}>
       {label}
       <select
         aria-label="관리할 주거공간 선택"
@@ -30,13 +30,15 @@ export function HomeSwitcher({ currentHomeId, homes, hideOnItemNew = false }: Ho
         onChange={(event) => changeHome(event.target.value)}
         style={{
           width: "100%",
-          minHeight: 42,
-          border: "1px solid #c9ddd8",
-          borderRadius: 9,
+          minHeight: 48,
+          border: "1px solid #cbded9",
+          borderRadius: 10,
           background: "#fff",
-          padding: "8px 12px",
+          padding: "12px 14px",
           color: "#193534",
-          font: "inherit",
+          fontFamily: "inherit",
+          fontSize: 16,
+          fontWeight: 400,
         }}
       >
         {homes.map((home) => <option key={home.id} value={home.id}>{home.name}</option>)}
