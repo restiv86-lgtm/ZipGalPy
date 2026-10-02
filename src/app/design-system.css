@@ -1,0 +1,37 @@
+:root{
+  --zg-ink:#173735;
+  --zg-ink-strong:#102f39;
+  --zg-muted:#667d78;
+  --zg-subtle:#80928e;
+  --zg-brand:#087f72;
+  --zg-brand-strong:#05695f;
+  --zg-mint:#e9f7f2;
+  --zg-blue:#edf6ff;
+  --zg-bg:#f5faf8;
+  --zg-surface:#ffffff;
+  --zg-line:#dce9e5;
+  --zg-line-strong:#bfd6d0;
+  --zg-danger:#a63d35;
+  --zg-danger-soft:#fff3f1;
+  --zg-warning:#8a651c;
+  --zg-warning-soft:#fff8e8;
+  --zg-radius-sm:10px;
+  --zg-radius-md:16px;
+  --zg-radius-lg:22px;
+  --zg-shadow:0 10px 28px rgba(29,78,68,.07);
+  --zg-shadow-hover:0 15px 34px rgba(29,78,68,.11);
+  --zg-content:1120px;
+}
+
+body{color:var(--zg-ink);background:var(--zg-bg)}
+:where(button,input,select,textarea){font-family:inherit}
+:where(input,select,textarea){color:var(--zg-ink);accent-color:var(--zg-brand)}
+:where(input,select,textarea):focus-visible{outline:3px solid rgba(8,127,114,.18);outline-offset:1px;border-color:var(--zg-brand)!important}
+:where(button,a,input,select,textarea,summary):focus-visible{outline:3px solid rgba(8,127,114,.28);outline-offset:3px}
+:where(button,a){-webkit-tap-highlight-color:transparent}
+::selection{background:#beeade;color:var(--zg-ink-strong)}
+
+@media(max-width:680px){
+  :root{--zg-radius-lg:18px}
+  body{font-size:16px}
+}
