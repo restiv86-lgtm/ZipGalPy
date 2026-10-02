@@ -10,6 +10,7 @@ type HomeSwitcherProps = {
 export function HomeSwitcher({ currentHomeId, homes }: HomeSwitcherProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const label = pathname.endsWith("/items/new") ? "물건을 등록할 주거공간" : "관리할 주거공간";
 
   if (homes.length < 2) return null;
 
@@ -20,7 +21,7 @@ export function HomeSwitcher({ currentHomeId, homes }: HomeSwitcherProps) {
 
   return (
     <label style={{ display: "grid", gap: 6, marginTop: 14, maxWidth: 320, color: "#356159", fontSize: 14, fontWeight: 750 }}>
-      관리할 주거공간
+      {label}
       <select
         aria-label="관리할 주거공간 선택"
         value={currentHomeId}
