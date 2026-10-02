@@ -85,7 +85,9 @@ export function HomeItemForm({
       setError(data.message);
       return;
     }
-    router.push(`/homes/${homeId}/items/${item?.id ?? data.item.id}`);
+    router.push(
+      `/homes/${data.item.homeId ?? homeId}/items/${item?.id ?? data.item.id}`,
+    );
     router.refresh();
   }
   const date = (value: Date | null) =>
@@ -93,6 +95,18 @@ export function HomeItemForm({
   return (
     <form className={styles.form} onSubmit={submit}>
       {!item && <HomeSwitcher currentHomeId={homeId} homes={homes} />}
+      {item && homes.length > 0 && (
+        <>
+          <label htmlFor="targetHomeId">물건이 있는 주거공간</label>
+          <select id="targetHomeId" name="targetHomeId" defaultValue={homeId}>
+            {homes.map((home) => (
+              <option key={home.id} value={home.id}>
+                {home.name}
+              </option>
+            ))}
+          </select>
+        </>
+      )}
       <label htmlFor="name">물건명 *</label>
       <input
         id="name"
