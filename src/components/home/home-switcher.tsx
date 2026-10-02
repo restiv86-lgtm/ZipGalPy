@@ -5,14 +5,16 @@ import { usePathname, useRouter } from "next/navigation";
 type HomeSwitcherProps = {
   currentHomeId: string;
   homes: { id: string; name: string }[];
+  hideOnItemNew?: boolean;
 };
 
-export function HomeSwitcher({ currentHomeId, homes }: HomeSwitcherProps) {
+export function HomeSwitcher({ currentHomeId, homes, hideOnItemNew = false }: HomeSwitcherProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const label = pathname.endsWith("/items/new") ? "물건을 등록할 주거공간" : "관리할 주거공간";
+  const isItemRegistration = pathname.endsWith("/items/new");
+  const label = isItemRegistration ? "물건을 등록할 주거공간" : "관리할 주거공간";
 
-  if (homes.length < 2) return null;
+  if (homes.length < 2 || (hideOnItemNew && isItemRegistration)) return null;
 
   function changeHome(nextHomeId: string) {
     const nextPath = pathname.replace(`/homes/${currentHomeId}`, `/homes/${nextHomeId}`);

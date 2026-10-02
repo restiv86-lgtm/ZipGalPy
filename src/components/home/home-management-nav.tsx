@@ -27,7 +27,7 @@ export function HomeManagementNav({ homeId, homeName, current, listHref, listLab
         <Link href="/">홈페이지</Link>
         <Link href={`/home/${homeId}/edit`}>집 정보</Link>
       </div>
-      <HomeSwitcher currentHomeId={homeId} homes={homes} />
+      <HomeSwitcher currentHomeId={homeId} homes={homes} hideOnItemNew />
       <nav className={styles.sectionNav} aria-label={`${homeName} 관리 메뉴`}>
         <Link href={`/homes/${homeId}/items`}>물건</Link>
         <Link href={`/homes/${homeId}/repairs`}>수리·점검</Link>
