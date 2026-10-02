@@ -25,6 +25,8 @@ model User {
   apartmentMemberships ApartmentMember[]
   apartmentRequests    ApartmentRequest[]
   handledReports       CommunityReport[]  @relation("CommunityReportHandler")
+  feedback             Feedback[]         @relation("FeedbackAuthor")
+  handledFeedback      Feedback[]         @relation("FeedbackHandler")
 
   @@map("users")
 }
@@ -32,6 +34,43 @@ model User {
 enum UserRole {
   USER
   ADMIN
+}
+
+enum FeedbackType {
+  BUG
+  UX
+  FEATURE_REQUEST
+  QUESTION
+  OTHER
+}
+
+enum FeedbackStatus {
+  NEW
+  REVIEWING
+  RESOLVED
+  CLOSED
+}
+
+model Feedback {
+  id          String         @id @default(cuid())
+  userId      String?
+  type        FeedbackType
+  title       String         @db.VarChar(120)
+  content     String         @db.VarChar(5000)
+  pageUrl     String?        @db.VarChar(500)
+  status      FeedbackStatus @default(NEW)
+  adminMemo   String?        @db.VarChar(1000)
+  handledAt   DateTime?
+  handledById String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  user        User?          @relation("FeedbackAuthor", fields: [userId], references: [id], onDelete: SetNull)
+  handledBy   User?          @relation("FeedbackHandler", fields: [handledById], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
+  @@index([handledById])
+  @@map("feedback")
 }
 
 model Apartment {
@@ -152,7 +191,7 @@ model CommunityReport {
   adminMemo        String?               @db.VarChar(1000)
   createdAt        DateTime              @default(now())
   reporterMember   ApartmentMember?      @relation("CommunityReportReporter", fields: [reporterMemberId], references: [id], onDelete: SetNull)
-  handledBy        User?                  @relation("CommunityReportHandler", fields: [handledById], references: [id], onDelete: SetNull)
+  handledBy        User?                 @relation("CommunityReportHandler", fields: [handledById], references: [id], onDelete: SetNull)
   post             CommunityPost?        @relation(fields: [postId], references: [id], onDelete: Cascade)
   comment          CommunityComment?     @relation(fields: [commentId], references: [id], onDelete: Cascade)
 

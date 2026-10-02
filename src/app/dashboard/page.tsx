@@ -36,9 +36,9 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
   ];
   return (
     <main className={styles.page}>
-      <header className={styles.header}><div className={styles.container}><Logo href="/" /><nav><Link href="/">홈페이지</Link><DashboardLogoutButton /></nav></div></header>
+      <header className={styles.header}><div className={styles.container}><Logo href="/" /><nav><Link href="/">홈페이지</Link><Link href="/feedback?from=/dashboard">의견 보내기</Link><DashboardLogoutButton /></nav></div></header>
       <div className={`${styles.container} ${styles.content}`}>
-        <section className={styles.welcome}><p className={styles.eyebrow}>MY ZIPGALPY</p><h1>안녕하세요, {session.user.name ?? "회원"}님</h1><p>내 집의 정보와 생활 기록을 한곳에서 관리하세요.</p></section>
+        <section className={styles.welcome}><p className={styles.eyebrow}>MY ZIPGALPY</p><h1>안녕하세요, {session.user.name ?? "회원"}님</h1><p>내 집의 정보와 생활 기록을 한곳에서 관리하세요.</p><Link className={`${styles.primaryLink} ${styles.feedbackLink}`} href="/feedback?from=/dashboard">의견 보내기</Link></section>
         <section aria-labelledby="homes-title"><div className={styles.sectionHeading}><div><p className={styles.eyebrow}>MY HOMES</p><h2 id="homes-title">내 집</h2></div><Link className={styles.primaryLink} href="/home/new">+ 내 집 등록</Link></div>
           {homes.length === 0 ? <div className={styles.empty}><span aria-hidden="true">🏡</span><h3>첫 번째 집을 등록해보세요</h3><p>주소와 기본 정보를 등록하면 집갈피 생활 관리가 시작됩니다.</p><Link className={styles.primaryLink} href="/home/new">내 집 등록하기</Link></div> : <div className={styles.homeGrid}>{homes.map((home) => <article className={styles.homeCard} key={home.id}><div><span>{selectedHomeId === home.id ? "현재 선택된 집" : housingLabels[home.housingType]}</span><h3>{home.name}</h3><p>{home.address}{home.addressDetail ? ` ${home.addressDetail}` : ""}</p></div><dl><div><dt>면적</dt><dd>{home.area ? `${home.area}㎡` : "미입력"}</dd></div><div><dt>준공</dt><dd>{home.builtYear ? `${home.builtYear}년` : "미입력"}</dd></div></dl>{homes.length > 1 && <Link href={`/dashboard?homeId=${home.id}`}>이 집으로 관리하기 →</Link>}<Link href={`/home/${home.id}/edit`}>집 정보 수정 →</Link></article>)}</div>}
         </section>
