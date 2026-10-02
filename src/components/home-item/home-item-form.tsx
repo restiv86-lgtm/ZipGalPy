@@ -3,6 +3,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import styles from "@/app/homes/[homeId]/items/items.module.css";
 import { HomeSwitcher } from "@/components/home/home-switcher";
+import { FormattedCurrencyInput, FormattedDateInput } from "@/components/ui/formatted-inputs";
+import { formatDateForInput, parseCurrencyValue } from "@/lib/forms/format";
 const categories = {
   APPLIANCE: "가전",
   FURNITURE: "가구",
@@ -33,26 +35,6 @@ type Item = {
   memo: string | null;
   status: string;
 };
-function formatDateValue(value: string) {
-  const digits = value.replace(/\D/g, "").slice(0, 8);
-  if (digits.length <= 4) return digits;
-  if (digits.length <= 6) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
-  return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`;
-}
-
-function formatDateInput(event: React.FormEvent<HTMLInputElement>) {
-  event.currentTarget.value = formatDateValue(event.currentTarget.value);
-}
-
-function formatPriceValue(value: string) {
-  const digits = value.replace(/\D/g, "");
-  return digits ? Number(digits).toLocaleString("ko-KR") : "";
-}
-
-function formatPriceInput(event: React.FormEvent<HTMLInputElement>) {
-  event.currentTarget.value = formatPriceValue(event.currentTarget.value);
-}
-
 export function HomeItemForm({
   homeId,
   item,
@@ -69,7 +51,7 @@ export function HomeItemForm({
     const form = new FormData(event.currentTarget);
     const body = {
       ...Object.fromEntries(form),
-      purchasePrice: String(form.get("purchasePrice") ?? "").replaceAll(",", ""),
+      purchasePrice: parseCurrencyValue(String(form.get("purchasePrice") ?? "")),
       createExpense: form.get("createExpense") === "on",
     };
     const response = await fetch(
@@ -90,8 +72,6 @@ export function HomeItemForm({
     );
     router.refresh();
   }
-  const date = (value: Date | null) =>
-    value ? new Date(value).toISOString().slice(0, 10) : "";
   return (
     <form className={styles.form} onSubmit={submit}>
       {!item && <HomeSwitcher currentHomeId={homeId} homes={homes} />}
@@ -162,27 +142,20 @@ export function HomeItemForm({
       <div className={styles.two}>
         <div>
           <label htmlFor="purchaseDate">구매일</label>
-          <input
+          <FormattedDateInput
             id="purchaseDate"
             name="purchaseDate"
-            type="text"
-            inputMode="numeric"
-            placeholder="YYYY-MM-DD"
-            maxLength={10}
-            pattern="\d{4}-\d{2}-\d{2}"
-            onInput={formatDateInput}
-            defaultValue={date(item?.purchaseDate ?? null)}
+            aria-label="구매일"
+            defaultValue={formatDateForInput(item?.purchaseDate ?? null)}
           />
         </div>
         <div>
           <label htmlFor="purchasePrice">구매가격</label>
-          <input
+          <FormattedCurrencyInput
             id="purchasePrice"
             name="purchasePrice"
-            type="text"
-            inputMode="numeric"
-            onInput={formatPriceInput}
-            defaultValue={formatPriceValue(item?.purchasePrice?.toString() ?? "")}
+            aria-label="구매가격"
+            defaultValue={item?.purchasePrice?.toString() ?? ""}
           />
         </div>
       </div>
@@ -204,16 +177,11 @@ export function HomeItemForm({
         </label>
       )}
       <label htmlFor="warrantyUntil">보증만료일</label>
-      <input
+      <FormattedDateInput
         id="warrantyUntil"
         name="warrantyUntil"
-        type="text"
-        inputMode="numeric"
-        placeholder="YYYY-MM-DD"
-        maxLength={10}
-        pattern="\d{4}-\d{2}-\d{2}"
-        onInput={formatDateInput}
-        defaultValue={date(item?.warrantyUntil ?? null)}
+        aria-label="보증만료일"
+        defaultValue={formatDateForInput(item?.warrantyUntil ?? null)}
       />
       <label htmlFor="memo">개인 메모</label>
       <textarea id="memo" name="memo" defaultValue={item?.memo ?? ""} />
