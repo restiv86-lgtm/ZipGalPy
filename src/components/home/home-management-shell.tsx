@@ -57,6 +57,24 @@ export function HomeManagementShell({
 
   return (
     <section className={styles.shell} aria-label={`${home.name} 집 관리`}>
+      <div className={styles.topNavigation}>
+        <Link
+          className={styles.dashboardLink}
+          href={`/dashboard?homeId=${home.id}`}
+          aria-label={`${home.name}이 선택된 Dashboard로 이동`}
+        >
+          <span aria-hidden="true">←</span>
+          <span>Dashboard</span>
+        </Link>
+        <div className={styles.currentContext} aria-label={`현재 ${home.name}의 ${active[1]} 관리 화면`}>
+          <span className={styles.currentHomeIcon} aria-hidden="true">🏠</span>
+          <span>
+            <strong>{home.name}</strong>
+            <small>{active[1]} 관리</small>
+          </span>
+        </div>
+      </div>
+
       <nav className={styles.breadcrumb} aria-label="현재 위치">
         <Link href={`/dashboard?homeId=${home.id}`}>Dashboard</Link>
         <span aria-hidden="true">›</span>
