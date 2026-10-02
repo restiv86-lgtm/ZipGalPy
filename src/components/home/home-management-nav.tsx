@@ -21,7 +21,8 @@ export function HomeManagementNav({ homeId, homeName, current, listHref, listLab
       </nav>
       <div className={styles.actions}>
         {listHref && listLabel ? <Link href={listHref}>← {listLabel}</Link> : null}
-        <Link href={`/dashboard?homeId=${homeId}`}>Dashboard</Link>
+        <Link href={`/dashboard?homeId=${homeId}`}>← Dashboard</Link>
+        <Link href="/">홈페이지</Link>
         <Link href={`/home/${homeId}/edit`}>집 정보</Link>
       </div>
       <nav className={styles.sectionNav} aria-label={`${homeName} 관리 메뉴`}>
