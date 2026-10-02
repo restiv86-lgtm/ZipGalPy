@@ -68,7 +68,7 @@ export function HomeManagementShell({
       <div className={styles.titleRow}>
         <div>
           <p className={styles.eyebrow}>내 집 관리</p>
-          <h1><span aria-hidden="true">🏠</span> {home.name}</h1>
+          <h2><span aria-hidden="true">🏠</span> {home.name}</h2>
           <p className={styles.address}>{home.address}</p>
           <p className={styles.meta}>{housingLabels[home.housingType] ?? "주거공간"}{home.area ? ` · ${home.area}㎡` : ""}</p>
         </div>
