@@ -52,7 +52,12 @@ export function HomeManagementShell({
   const active = sections.find(([key]) => pathname.includes(`/homes/${home.id}/${key}`)) ?? sections[0];
 
   function changeHome(nextHomeId: string) {
-    router.push(`/homes/${nextHomeId}/${active[0]}`);
+    router.push(active[0] === "items" ? `/items?homeId=${nextHomeId}` : `/homes/${nextHomeId}/${active[0]}`);
+  }
+
+  function sectionHref(key: (typeof sections)[number][0], filtered = false) {
+    if (key === "items") return filtered ? `/items?homeId=${home.id}` : "/items";
+    return `/homes/${home.id}/${key}`;
   }
 
   return (
@@ -114,7 +119,7 @@ export function HomeManagementShell({
         {sections.map(([key, label, icon]) => (
           <Link
             key={key}
-            href={`/homes/${home.id}/${key}`}
+            href={sectionHref(key)}
             className={active[0] === key ? styles.active : undefined}
             aria-current={active[0] === key ? "page" : undefined}
           >
@@ -125,7 +130,7 @@ export function HomeManagementShell({
 
       <div className={styles.summary} aria-label="집 관리 현황">
         {sections.map(([key, label]) => (
-          <Link key={key} href={`/homes/${home.id}/${key}`}>
+          <Link key={key} href={sectionHref(key, true)}>
             <span>{label}</span><strong>{counts[key]}</strong>
           </Link>
         ))}

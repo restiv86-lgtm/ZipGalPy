@@ -1,201 +1,62 @@
 "use client";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import styles from "@/app/homes/[homeId]/items/items.module.css";
-import { HomeSwitcher } from "@/components/home/home-switcher";
 import { FormattedCurrencyInput, FormattedDateInput } from "@/components/ui/formatted-inputs";
 import { formatDateForInput, parseCurrencyValue } from "@/lib/forms/format";
-const categories = {
-  APPLIANCE: "가전",
-  FURNITURE: "가구",
-  KITCHEN: "주방",
-  HOUSEHOLD: "생활용품",
-  DIGITAL: "디지털",
-  HOBBY: "취미",
-  CHILDCARE: "육아",
-  OTHER: "기타",
-};
-const statuses = {
-  USING: "사용중",
-  STORED: "보관중",
-  REPAIRING: "수리중",
-  SOLD: "판매완료",
-  GIVEN_AWAY: "나눔완료",
-  DISPOSED: "폐기",
-};
-type Item = {
-  id: string;
-  name: string;
-  category: string;
-  brand: string | null;
-  modelName: string | null;
-  purchaseDate: Date | null;
-  purchasePrice: { toString(): string } | null;
-  warrantyUntil: Date | null;
-  memo: string | null;
-  status: string;
-};
-export function HomeItemForm({
-  homeId,
-  item,
-  homes = [],
-}: {
-  homeId: string;
-  item?: Item;
-  homes?: { id: string; name: string }[];
-}) {
+
+const categories = { APPLIANCE: "가전", FURNITURE: "가구", KITCHEN: "주방", HOUSEHOLD: "생활용품", DIGITAL: "디지털", HOBBY: "취미", CHILDCARE: "육아", OTHER: "기타" };
+const statuses = { USING: "사용중", STORED: "보관중", REPAIRING: "수리중", SOLD: "판매완료", GIVEN_AWAY: "나눔완료", DISPOSED: "폐기" };
+type Item = { id: string; name: string; category: string; brand: string | null; modelName: string | null; purchaseDate: Date | null; purchasePrice: { toString(): string } | null; warrantyUntil: Date | null; memo: string | null; status: string };
+
+export function HomeItemForm({ homeId, item, homes = [], requireHomeSelection = false }: { homeId: string; item?: Item; homes?: { id: string; name: string }[]; requireHomeSelection?: boolean }) {
   const router = useRouter();
+  const initialHomeId = item ? homeId : homes.length === 1 ? homes[0].id : requireHomeSelection ? "" : homeId;
+  const [selectedHomeId, setSelectedHomeId] = useState(initialHomeId);
   const [error, setError] = useState("");
+
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const body = {
-      ...Object.fromEntries(form),
-      purchasePrice: parseCurrencyValue(String(form.get("purchasePrice") ?? "")),
-      createExpense: form.get("createExpense") === "on",
-    };
-    const response = await fetch(
-      `/api/homes/${homeId}/items${item ? `/${item.id}` : ""}`,
-      {
-        method: item ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      },
-    );
+    const targetHomeId = String(form.get("targetHomeId") ?? selectedHomeId);
+    const requestHomeId = item ? homeId : targetHomeId;
+    if (!requestHomeId) { setError("물건을 등록할 집을 선택해 주세요."); return; }
+    const body = { ...Object.fromEntries(form), targetHomeId, purchasePrice: parseCurrencyValue(String(form.get("purchasePrice") ?? "")), createExpense: form.get("createExpense") === "on" };
+    const response = await fetch(`/api/homes/${requestHomeId}/items${item ? `/${item.id}` : ""}`, { method: item ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const data = await response.json();
-    if (!response.ok) {
-      setError(data.message);
-      return;
-    }
-    router.push(
-      `/homes/${data.item.homeId ?? homeId}/items/${item?.id ?? data.item.id}`,
-    );
+    if (!response.ok) { setError(data.message); return; }
+    router.push(`/homes/${data.item.homeId ?? requestHomeId}/items/${item?.id ?? data.item.id}`);
     router.refresh();
   }
-  return (
-    <form className={styles.form} onSubmit={submit}>
-      {!item && <HomeSwitcher currentHomeId={homeId} homes={homes} />}
-      {item && homes.length > 0 && (
-        <>
-          <label htmlFor="targetHomeId">물건이 있는 주거공간</label>
-          <select id="targetHomeId" name="targetHomeId" defaultValue={homeId}>
-            {homes.map((home) => (
-              <option key={home.id} value={home.id}>
-                {home.name}
-              </option>
-            ))}
-          </select>
-        </>
-      )}
-      <label htmlFor="name">물건명 *</label>
-      <input
-        id="name"
-        name="name"
-        defaultValue={item?.name}
-        maxLength={120}
-        required
-      />
-      <div className={styles.two}>
-        <div>
-          <label htmlFor="category">카테고리 *</label>
-          <select
-            id="category"
-            name="category"
-            defaultValue={item?.category ?? "APPLIANCE"}
-          >
-            {Object.entries(categories).map(([value, label]) => (
-              <option value={value} key={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label htmlFor="status">상태</label>
-          <select
-            id="status"
-            name="status"
-            defaultValue={item?.status ?? "USING"}
-          >
-            {Object.entries(statuses).map(([value, label]) => (
-              <option value={value} key={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-      <div className={styles.two}>
-        <div>
-          <label htmlFor="brand">브랜드</label>
-          <input id="brand" name="brand" defaultValue={item?.brand ?? ""} />
-        </div>
-        <div>
-          <label htmlFor="modelName">모델명</label>
-          <input
-            id="modelName"
-            name="modelName"
-            defaultValue={item?.modelName ?? ""}
-          />
-        </div>
-      </div>
-      <div className={styles.two}>
-        <div>
-          <label htmlFor="purchaseDate">구매일</label>
-          <FormattedDateInput
-            id="purchaseDate"
-            name="purchaseDate"
-            aria-label="구매일"
-            defaultValue={formatDateForInput(item?.purchaseDate ?? null)}
-          />
-        </div>
-        <div>
-          <label htmlFor="purchasePrice">구매가격</label>
-          <FormattedCurrencyInput
-            id="purchasePrice"
-            name="purchasePrice"
-            aria-label="구매가격"
-            defaultValue={item?.purchasePrice?.toString() ?? ""}
-          />
-        </div>
-      </div>
-      {!item && (
-        <label style={{ display: "flex", alignItems: "center", gap: 9 }}>
-          <input
-            name="createExpense"
-            type="checkbox"
-            style={{
-              width: 18,
-              height: 18,
-              margin: 0,
-              padding: 0,
-              flex: "0 0 auto",
-              accentColor: "#087f72",
-            }}
-          />
-          <span>구매비용에도 기록</span>
-        </label>
-      )}
-      <label htmlFor="warrantyUntil">보증만료일</label>
-      <FormattedDateInput
-        id="warrantyUntil"
-        name="warrantyUntil"
-        aria-label="보증만료일"
-        defaultValue={formatDateForInput(item?.warrantyUntil ?? null)}
-      />
-      <label htmlFor="memo">개인 메모</label>
-      <textarea id="memo" name="memo" defaultValue={item?.memo ?? ""} />
-      <p className={styles.meta}>
-        구매가격과 개인 메모는 커뮤니티나 장터에 자동 공개되지 않습니다.
-      </p>
-      {error && (
-        <p className={styles.error} role="alert">
-          {error}
-        </p>
-      )}
-      <button className={styles.primary}>
-        {item ? "수정 완료" : "물건 등록"}
-      </button>
-    </form>
-  );
+
+  return <form className={styles.form} onSubmit={submit}>
+    {homes.length > 0 && <>
+      <label htmlFor="targetHomeId">{item ? "물건이 있는 집" : "어느 집의 물건인가요? *"}</label>
+      <select id="targetHomeId" name="targetHomeId" value={selectedHomeId} onChange={(event) => setSelectedHomeId(event.target.value)} required>
+        {!item && requireHomeSelection && <option value="">집을 선택해 주세요</option>}
+        {homes.map((home) => <option key={home.id} value={home.id}>{home.name}</option>)}
+      </select>
+      {item && <p className={styles.meta}>본인이 등록한 다른 집으로 이동할 수 있습니다. 연결된 수리·일정·비용·문서도 함께 이동합니다.</p>}
+    </>}
+    <label htmlFor="name">물건명 *</label><input id="name" name="name" defaultValue={item?.name} maxLength={120} required />
+    <div className={styles.two}>
+      <div><label htmlFor="category">카테고리 *</label><select id="category" name="category" defaultValue={item?.category ?? "APPLIANCE"}>{Object.entries(categories).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></div>
+      <div><label htmlFor="status">상태</label><select id="status" name="status" defaultValue={item?.status ?? "USING"}>{Object.entries(statuses).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></div>
+    </div>
+    <div className={styles.two}>
+      <div><label htmlFor="brand">브랜드</label><input id="brand" name="brand" defaultValue={item?.brand ?? ""} /></div>
+      <div><label htmlFor="modelName">모델명</label><input id="modelName" name="modelName" defaultValue={item?.modelName ?? ""} /></div>
+    </div>
+    <div className={styles.two}>
+      <div><label htmlFor="purchaseDate">구매일</label><FormattedDateInput id="purchaseDate" name="purchaseDate" aria-label="구매일" defaultValue={formatDateForInput(item?.purchaseDate ?? null)} /></div>
+      <div><label htmlFor="purchasePrice">구매가격</label><FormattedCurrencyInput id="purchasePrice" name="purchasePrice" aria-label="구매가격" defaultValue={item?.purchasePrice?.toString() ?? ""} /></div>
+    </div>
+    {!item && <label style={{ display: "flex", alignItems: "center", gap: 9 }}><input name="createExpense" type="checkbox" style={{ width: 18, height: 18, margin: 0, padding: 0, flex: "0 0 auto", accentColor: "#087f72" }} /><span>구매비용에도 기록</span></label>}
+    <label htmlFor="warrantyUntil">보증만료일</label><FormattedDateInput id="warrantyUntil" name="warrantyUntil" aria-label="보증만료일" defaultValue={formatDateForInput(item?.warrantyUntil ?? null)} />
+    <label htmlFor="memo">개인 메모</label><textarea id="memo" name="memo" defaultValue={item?.memo ?? ""} />
+    <p className={styles.meta}>구매가격과 개인 메모는 커뮤니티나 장터에 자동 공개되지 않습니다.</p>
+    {error && <p className={styles.error} role="alert">{error}</p>}
+    <button className={styles.primary}>{item ? "수정 완료" : "물건 등록"}</button>
+  </form>;
 }
