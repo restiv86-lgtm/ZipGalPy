@@ -56,7 +56,7 @@ export function HomeManagementShell({
   }
 
   return (
-    <header className={styles.shell}>
+    <section className={styles.shell} aria-label={`${home.name} 집 관리`}>
       <nav className={styles.breadcrumb} aria-label="현재 위치">
         <Link href={`/dashboard?homeId=${home.id}`}>Dashboard</Link>
         <span aria-hidden="true">›</span>
@@ -112,6 +112,6 @@ export function HomeManagementShell({
           </Link>
         ))}
       </div>
-    </header>
+    </section>
   );
 }
