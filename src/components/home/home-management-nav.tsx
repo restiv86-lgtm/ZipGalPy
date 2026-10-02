@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { HomeSwitcher } from "./home-switcher";
 import styles from "./home-management-nav.module.css";
 
 type HomeManagementNavProps = {
@@ -11,7 +10,7 @@ type HomeManagementNavProps = {
   homes?: { id: string; name: string }[];
 };
 
-export function HomeManagementNav({ homeId, homeName, current, listHref, listLabel, homes = [] }: HomeManagementNavProps) {
+export function HomeManagementNav({ homeId, homeName, current }: HomeManagementNavProps) {
   return (
     <div className={styles.wrap}>
       <nav className={styles.breadcrumb} aria-label="현재 위치">
@@ -19,13 +18,6 @@ export function HomeManagementNav({ homeId, homeName, current, listHref, listLab
         <span aria-hidden="true">›</span>
         <span aria-current="page">{current}</span>
       </nav>
-      <div className={styles.actions}>
-        {listHref && listLabel ? <Link href={listHref}>← {listLabel}</Link> : null}
-        <Link href={`/dashboard?homeId=${homeId}`}>← Dashboard</Link>
-        <Link href="/">홈페이지</Link>
-        <Link href={`/home/${homeId}/edit`}>집 정보</Link>
-      </div>
-      <HomeSwitcher currentHomeId={homeId} homes={homes} hideOnItemNew />
       <nav className={styles.sectionNav} aria-label={`${homeName} 관리 메뉴`}>
         <Link href={`/homes/${homeId}/items`}>물건</Link>
         <Link href={`/homes/${homeId}/repairs`}>수리·점검</Link>
