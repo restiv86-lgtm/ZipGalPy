@@ -5,7 +5,18 @@ export function listHomes(userId: string) {
   return getPrisma().home.findMany({
     where: { userId },
     orderBy: { createdAt: "asc" },
-    include: { _count: { select: { items: true } } },
+    include: {
+      _count: {
+        select: {
+          items: true,
+          repairs: true,
+          schedules: true,
+          expenses: true,
+          contracts: true,
+          documents: true,
+        },
+      },
+    },
   });
 }
 
