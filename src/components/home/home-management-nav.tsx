@@ -10,14 +10,9 @@ type HomeManagementNavProps = {
   homes?: { id: string; name: string }[];
 };
 
-export function HomeManagementNav({ homeId, homeName, current }: HomeManagementNavProps) {
+export function HomeManagementNav({ homeId, homeName }: HomeManagementNavProps) {
   return (
     <div className={styles.wrap}>
-      <nav className={styles.breadcrumb} aria-label="현재 위치">
-        <Link href={`/dashboard?homeId=${homeId}`}>Dashboard</Link>
-        <span aria-hidden="true">›</span>
-        <span aria-current="page">{current}</span>
-      </nav>
       <nav className={styles.sectionNav} aria-label={`${homeName} 관리 메뉴`}>
         <Link href={`/homes/${homeId}/items`}>물건</Link>
         <Link href={`/homes/${homeId}/repairs`}>수리·점검</Link>
