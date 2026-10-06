@@ -7,21 +7,23 @@ import { FormattedCurrencyInput, FormattedDateInput } from "@/components/ui/form
 import { formatDateForInput, parseCurrencyValue } from "@/lib/forms/format";
 
 type Contract = { id: string; type: string; title: string; companyName: string | null; contractNumber: string | null; startDate: Date | null; endDate: Date | null; amount: { toString(): string } | null; reminderDays: number[]; memo: string | null; status: string };
+type HomeOption = { id: string; name: string };
 const types = { LEASE: "임대·전세", RENTAL: "렌탈", INSURANCE: "보험", INTERNET: "인터넷", SECURITY: "보안", MAINTENANCE: "유지관리", SUBSCRIPTION: "구독", OTHER: "기타" };
 
-export function ContractForm({ homeId, contract }: { homeId: string; contract?: Contract }) {
-  const router = useRouter();
-  const [error, setError] = useState("");
+export function ContractForm({ homeId, homes, contract }: { homeId: string; homes: HomeOption[]; contract?: Contract }) {
+  const router = useRouter(); const [error, setError] = useState("");
+  const [selectedHomeId, setSelectedHomeId] = useState(contract ? homeId : homes.length === 1 ? homes[0].id : "");
   async function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+    event.preventDefault(); if (!selectedHomeId) { setError("계약을 등록할 집을 선택해 주세요."); return; }
     const form = new FormData(event.currentTarget);
-    const body = { ...Object.fromEntries(form), amount: parseCurrencyValue(String(form.get("amount") ?? "")), reminderDays: form.getAll("reminderDays").map(Number) };
-    const response = await fetch(`/api/homes/${homeId}/contracts${contract ? `/${contract.id}` : ""}`, { method: contract ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    const data = await response.json();
-    if (!response.ok) { setError(data.message); return; }
-    router.push(`/homes/${homeId}/contracts`); router.refresh();
+    const body = { ...Object.fromEntries(form), targetHomeId: selectedHomeId, amount: parseCurrencyValue(String(form.get("amount") ?? "")), reminderDays: form.getAll("reminderDays").map(Number) };
+    const requestHomeId = contract ? homeId : selectedHomeId;
+    const response = await fetch(`/api/homes/${requestHomeId}/contracts${contract ? `/${contract.id}` : ""}`, { method: contract ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const data = await response.json(); if (!response.ok) { setError(data.message); return; }
+    router.push(`/homes/${data.contract.homeId ?? selectedHomeId}/contracts/${contract?.id ?? data.contract.id}`); router.refresh();
   }
   return <form className={styles.form} onSubmit={submit}>
+    <label htmlFor="targetHomeId">어느 집의 계약인가요? *</label><select id="targetHomeId" value={selectedHomeId} onChange={(event) => setSelectedHomeId(event.target.value)} required><option value="">집을 선택해 주세요</option>{homes.map((home) => <option value={home.id} key={home.id}>{home.name}</option>)}</select>
     <label htmlFor="title">계약명 *</label><input id="title" name="title" defaultValue={contract?.title} required />
     <label htmlFor="type">계약 유형</label><select id="type" name="type" defaultValue={contract?.type ?? "OTHER"}>{Object.entries(types).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select>
     <div className={styles.two}><div><label htmlFor="startDate">시작일</label><FormattedDateInput id="startDate" name="startDate" aria-label="계약 시작일" defaultValue={formatDateForInput(contract?.startDate ?? null)} /></div><div><label htmlFor="endDate">종료일</label><FormattedDateInput id="endDate" name="endDate" aria-label="계약 종료일" defaultValue={formatDateForInput(contract?.endDate ?? null)} /></div></div>
