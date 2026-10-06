@@ -82,9 +82,9 @@ export async function updateSchedule(userId: string, homeId: string, id: string,
 export async function deleteSchedule(userId: string, homeId: string, id: string) { return (await getPrisma().homeSchedule.deleteMany({ where: { id, homeId, home: { userId } } })).count === 1; }
 
 export async function dashboardManagement(userId: string, homeId?: string | null) {
-  const now = new Date(), soon = new Date(now.getTime() + 7 * 86400000); const homeWhere = { userId, ...(homeId ? { id: homeId } : {}) }; const prisma = getPrisma();
-  const [countItems, countRepairs, countSchedules, countDocuments, upcoming] = await Promise.all([
-    prisma.homeItem.count({ where: { home: homeWhere } }), prisma.homeRepair.count({ where: { home: homeWhere } }), prisma.homeSchedule.count({ where: { home: homeWhere, completed: false } }), prisma.homeDocument.count({ where: { home: homeWhere } }), prisma.homeSchedule.findMany({ where: { home: homeWhere, completed: false, scheduledAt: { lte: soon } }, orderBy: { scheduledAt: "asc" }, take: 6, include: { home: { select: { name: true } } } }),
+  const homeWhere = { userId, ...(homeId ? { id: homeId } : {}) }; const prisma = getPrisma();
+  const [countItems, countRepairs, countSchedules, countDocuments, countContracts] = await Promise.all([
+    prisma.homeItem.count({ where: { home: homeWhere } }), prisma.homeRepair.count({ where: { home: homeWhere } }), prisma.homeSchedule.count({ where: { home: homeWhere, completed: false } }), prisma.homeDocument.count({ where: { home: homeWhere } }), prisma.homeContract.count({ where: { home: homeWhere } }),
   ]);
-  return { countItems, countRepairs, countSchedules, countDocuments, upcoming, now };
+  return { countItems, countRepairs, countSchedules, countDocuments, countContracts };
 }
