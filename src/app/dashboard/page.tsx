@@ -43,11 +43,11 @@ export default async function DashboardPage() {
   ]);
 
   const statusCards = [
-    { href: "/items", label: "등록 물건", value: `${management.countItems.toLocaleString("ko-KR")}개`, detail: "전체 물건 보기" },
-    { href: "/repairs", label: "수리 기록", value: `${management.countRepairs.toLocaleString("ko-KR")}개`, detail: "수리·점검 보기" },
-    { href: "/schedules", label: "예정 일정", value: `${management.countSchedules.toLocaleString("ko-KR")}개`, detail: "미완료 일정 보기" },
-    { href: "/documents", label: "보관 문서", value: `${management.countDocuments.toLocaleString("ko-KR")}개`, detail: "문서 보기" },
-    { href: "/expenses?period=month", label: "이번 달 지출", value: `${expenses.month.toLocaleString("ko-KR")}원`, detail: "이번 달 비용 보기" },
+    { href: "/items", label: "물건", value: `${management.countItems.toLocaleString("ko-KR")}개`, detail: "전체 물건 보기" },
+    { href: "/repairs", label: "수리·점검", value: `${management.countRepairs.toLocaleString("ko-KR")}개`, detail: "수리·점검 보기" },
+    { href: "/schedules", label: "일정", value: `${management.countSchedules.toLocaleString("ko-KR")}개`, detail: "미완료 일정 보기" },
+    { href: "/documents", label: "문서", value: `${management.countDocuments.toLocaleString("ko-KR")}개`, detail: "문서 보기" },
+    { href: "/expenses?period=month", label: "이번 달 비용", value: `${expenses.month.toLocaleString("ko-KR")}원`, detail: "이번 달 비용 보기" },
     { href: "/contracts", label: "계약", value: `${management.countContracts.toLocaleString("ko-KR")}개`, detail: "계약 보기" },
   ] as const;
 
@@ -105,12 +105,11 @@ export default async function DashboardPage() {
               <p className={styles.selectedHome}>등록한 모든 주거공간의 실제 합계입니다.</p>
             </div>
           </div>
-          <div className={styles.statusGrid}>
+          <div className={styles.compactStatusGrid}>
             {statusCards.map((card) => (
-              <Link className={styles.statusCard} href={card.href} key={card.href} aria-label={`${card.label} ${card.value} ${card.detail}`}>
+              <Link className={styles.compactStatusCard} href={card.href} key={card.href} aria-label={`${card.label} ${card.value} ${card.detail}`}>
                 <span>{card.label}</span>
                 <strong>{card.value}</strong>
-                <small>{card.detail} →</small>
               </Link>
             ))}
           </div>
