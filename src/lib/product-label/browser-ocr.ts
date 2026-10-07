@@ -1,6 +1,7 @@
 import type { Worker } from "tesseract.js";
 import { extractProductLabel, type LabelRecognition } from "./extract";
-import { modelRegions, modelCropEvidence, type ModelReading } from "./model-region";
+import { modelRegions, modelSearchBands, modelCropEvidence, type ModelReading } from "./model-region";
+import { enhanceModelPixels } from "./model-preprocess";
 
 // Provider boundary: a future optional AI helper can be added without changing item CRUD.
 export interface LabelRecognitionProvider { recognize(file: File, signal: AbortSignal, progress: (value:number)=>void): Promise<LabelRecognition> }
@@ -33,17 +34,40 @@ export const browserLabelOcr: LabelRecognitionProvider = {
       const {data}=await worker.recognize(canvas,{}, {text:true,blocks:true});
       if(cancelled)throw new Error("인식을 취소했습니다.");
       await worker.setParameters({tessedit_pageseg_mode:library.PSM.SPARSE_TEXT});
-      const second=await worker.recognize(canvas,{}, {text:true});
+      const second=await worker.recognize(canvas,{}, {text:true,blocks:true});
       if(cancelled)throw new Error("인식을 취소했습니다.");
       const lines=(data.blocks??[]).flatMap(block=>block.paragraphs.flatMap(paragraph=>paragraph.lines.map(line=>({text:line.text,confidence:Math.min(line.confidence,...line.words.map(word=>word.confidence)),bbox:line.bbox,words:line.words}))));
       const readings:ModelReading[]=[];
-      await worker.setParameters({tessedit_pageseg_mode:library.PSM.SINGLE_WORD});
-      for(const region of modelRegions(lines,canvas.width,canvas.height))for(const zoom of [4,6]){
+      let regions=modelRegions(lines,canvas.width,canvas.height);
+      if(!regions.length){
+        const sparseLines=(second.data.blocks??[]).flatMap(block=>block.paragraphs.flatMap(p=>p.lines));
+        regions=modelRegions(sparseLines,canvas.width,canvas.height);
+      }
+      if(!regions.length){
+        await worker.setParameters({tessedit_pageseg_mode:library.PSM.SINGLE_BLOCK});
+        for(const band of modelSearchBands(canvas.width,canvas.height)){
+          if(cancelled)throw new Error("인식을 취소했습니다.");
+          const strip=document.createElement("canvas");strip.width=band.width*4;strip.height=band.height*4;
+          try{
+            const ctx=strip.getContext("2d");if(!ctx)continue;
+            ctx.drawImage(canvas,band.left,band.top,band.width,band.height,0,0,strip.width,strip.height);
+            const scan=await worker.recognize(strip,{}, {text:true,blocks:true});
+            const rows=(scan.data.blocks??[]).flatMap(block=>block.paragraphs.flatMap(p=>p.lines));
+            const found=modelRegions(rows,strip.width,strip.height);
+            if(found.length){regions=found.map(box=>({left:Math.floor(band.left+box.left/4),top:Math.floor(band.top+box.top/4),width:Math.ceil(box.width/4)+4,height:Math.ceil(box.height/4)+4}));break;}
+          }finally{strip.width=0;strip.height=0;}
+        }
+      }
+      await worker.reinitialize("eng");
+      await worker.setParameters({tessedit_pageseg_mode:library.PSM.SINGLE_LINE});
+      for(const region of regions)for(const zoom of [4,6]){
         if(cancelled)throw new Error("인식을 취소했습니다.");
         const crop=document.createElement("canvas");crop.width=region.width*zoom;crop.height=region.height*zoom;
         try{
           const cropContext=crop.getContext("2d");if(!cropContext)continue;
           cropContext.drawImage(canvas,region.left,region.top,region.width,region.height,0,0,crop.width,crop.height);
+          const pixels=cropContext.getImageData(0,0,crop.width,crop.height);
+          enhanceModelPixels(pixels.data,crop.width,crop.height);cropContext.putImageData(pixels,0,0);
           const result=await worker.recognize(crop,{}, {text:true});readings.push({text:result.data.text,confidence:result.data.confidence});
         }finally{crop.width=0;crop.height=0;}
       }
