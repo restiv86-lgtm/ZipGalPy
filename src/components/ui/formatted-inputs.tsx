@@ -37,8 +37,10 @@ export function FormattedCurrencyInput({ name, defaultValue, ...props }: CommonI
   );
 }
 
-export function FormattedDateInput({ name, defaultValue, "aria-label": ariaLabel, ...props }: CommonInputProps) {
-  const [displayValue, setDisplayValue] = useState(() => formatDateInput(String(defaultValue ?? "")));
+export function FormattedDateInput({ name, defaultValue, value, onValueChange, "aria-label": ariaLabel, ...props }: CommonInputProps & {value?:string;onValueChange?:(value:string)=>void}) {
+  const [localValue, setLocalValue] = useState(() => formatDateInput(String(defaultValue ?? "")));
+  const displayValue=value===undefined?localValue:formatDateInput(value);
+  function setDisplayValue(next:string){setLocalValue(next);onValueChange?.(next);}
   const dateValue = isCompleteDate(displayValue) ? displayValue : "";
 
   return (

@@ -6,7 +6,8 @@ import sharp from "sharp";
 import {createWorker,PSM} from "tesseract.js";
 import {modelRegions,modelCropEvidence,type ModelReading} from "../src/lib/product-label/model-region";
 import {extractProductLabel} from "../src/lib/product-label/extract";
-import {applyConfirmedCandidate} from "../src/lib/product-label/apply-candidate";
+import {labelFormReducer} from "../src/lib/product-label/autofill";
+import {emptyLabelFields} from "../src/lib/product-label/extract";
 
 const file="test-labels/refrigerator-label.jpg";
 assert.ok(fs.existsSync(file),"Actual refrigerator fixture required; not a passed test when missing.");
@@ -29,17 +30,11 @@ try{
   const result=extractProductLabel(data.text,data.confidence,lines,undefined,evidence);
   assert.equal(result.suggestions.modelName.value,"S839S30");
   assert.equal(result.fields.modelName,""); // Low-confidence evidence must never prefill.
-  let modelInput="",calls=0;
-  assert.equal(calls,0);
-  assert.equal(applyConfirmedCandidate("modelName",result.suggestions.modelName,fields=>{
-    calls++;modelInput=fields.modelName;
-    assert.equal(fields.brand,"");assert.equal(fields.name,"");
-    return true;
-  }),true);
-  assert.equal(modelInput,"S839S30");assert.equal(calls,1);
-  assert.equal(applyConfirmedCandidate("modelName",{...result.suggestions.modelName,value:""},()=>{throw new Error("Empty candidate cannot apply");}),false);
+  const form=labelFormReducer({fields:emptyLabelFields(),automatic:{},manual:{}},{type:"analyzed",suggestions:result.suggestions});
+  assert.equal(form.fields.modelName,"");
+  assert.equal(form.fields.brand,result.suggestions.brand.confidence==="LOW"?"":result.suggestions.brand.value);
   assert.equal(modelCropEvidence([{text:"S839S30",confidence:95},{text:"S839530",confidence:95}]),null);
   assert.equal(modelCropEvidence([{text:"8839830",confidence:99}]),null);
   assert.equal(createHash("sha256").update(fs.readFileSync(file)).digest("hex"),hash);
-  console.log(JSON.stringify({model:result.suggestions.modelName,automaticInput:result.fields.modelName,modelInputAfterExplicitApply:modelInput,fixtureUnchanged:true}));
+  console.log(JSON.stringify({model:result.suggestions.modelName,brand:result.suggestions.brand,automaticModelInput:form.fields.modelName,automaticBrand:form.fields.brand,brandNeedsReview:form.automatic.brand?.confidence==="MEDIUM",fixtureUnchanged:true}));
 }finally{await worker.terminate();}

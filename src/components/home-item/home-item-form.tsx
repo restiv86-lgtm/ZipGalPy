@@ -1,10 +1,11 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useReducer, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ProductLabelCapture } from "./product-label-capture";
 import { emptyLabelFields, type LabelFields } from "@/lib/product-label/extract";
+import { labelFormReducer, type LabelProposal } from "@/lib/product-label/autofill";
 import { ItemPhotoEditor, type ItemPhotoEditorHandle } from "./item-photo-editor";
 import { AttachmentPanel } from "@/components/attachments/attachment-panel";
 import photoStyles from "./item-photos.module.css";
@@ -25,13 +26,12 @@ export function HomeItemForm({ homeId, item, homes = [], requireHomeSelection = 
   const photoEditor=useRef<ItemPhotoEditorHandle>(null);
   const [showLabel,setShowLabel]=useState(false);
   const [savedItem,setSavedItem]=useState<{id:string;homeId:string}|null>(null);
-  const [fields,setFields]=useState<LabelFields>(()=>({...emptyLabelFields(),name:item?.name??"",brand:item?.brand??"",modelName:item?.modelName??"",serialNumber:item?.serialNumber??"",manufacturedAt:formatDateForInput(item?.manufacturedAt??null),category:item?.category??"APPLIANCE"}));
-  function applyLabel(proposed:LabelFields,file?:File) {
-    const replacements=(Object.keys(proposed) as (keyof LabelFields)[]).some(key=>proposed[key]&&fields[key]&&fields[key]!==proposed[key]);
-    if(replacements&&!window.confirm("인식 제안으로 현재 입력된 일부 값을 바꿀까요? 빈 제안값은 기존 값을 지우지 않습니다."))return false;
-    setFields(current=>({...current,...Object.fromEntries(Object.entries(proposed).filter(([,value])=>value))}));if(file)photoEditor.current?.add(file);
-    return true;
-  }
+  const [labelForm,dispatchLabel]=useReducer(labelFormReducer,{fields:{...emptyLabelFields(),name:item?.name??"",brand:item?.brand??"",modelName:item?.modelName??"",serialNumber:item?.serialNumber??"",manufacturedAt:formatDateForInput(item?.manufacturedAt??null),category:item?.category??"APPLIANCE"},automatic:{},manual:{}});
+  const fields=labelForm.fields;
+  const editField=(key:keyof LabelFields,value:string)=>dispatchLabel({type:"edited",key,value});
+  const discardLabel=()=>dispatchLabel({type:"discard"});
+  function analyzedLabel(suggestions:Partial<Record<keyof LabelFields,LabelProposal>>){dispatchLabel({type:"analyzed",suggestions});}
+  function confirmation(key:keyof LabelFields){return labelForm.automatic[key]?.confidence==="MEDIUM"?<small id={`${key}-label-check`} role="status">확인 필요 · 라벨과 비교하고 수정해 주세요.</small>:null;}
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -57,9 +57,9 @@ export function HomeItemForm({ homeId, item, homes = [], requireHomeSelection = 
 
   return <form className={styles.form} onSubmit={submit}>
     <ItemPhotoEditor ref={photoEditor} itemId={item?.id} disabled={busy||!!savedItem}>
-      <button type="button" className={photoStyles.labelToggle} disabled={busy||!!savedItem} aria-expanded={showLabel} onClick={()=>setShowLabel(!showLabel)}><span>제품 라벨 촬영/분석</span><span aria-hidden="true">{showLabel?"−":"＋"}</span></button>
-      <small className={photoStyles.labelHint}>명판의 제품 정보를 읽어 제안합니다. 확인 후 폼에 반영할 수 있어요.</small>
-      {showLabel&&<ProductLabelCapture onApply={applyLabel} disabled={busy||!!savedItem}/>}
+      <button type="button" className={photoStyles.labelToggle} disabled={busy||!!savedItem} aria-expanded={showLabel} onClick={()=>{if(showLabel)discardLabel();setShowLabel(!showLabel);}}><span>제품 라벨 촬영/분석</span><span aria-hidden="true">{showLabel?"−":"＋"}</span></button>
+      <small className={photoStyles.labelHint}>HIGH/MEDIUM은 빈칸만 채웁니다. LOW는 후보로만 표시하며, 저장 전 모두 수정할 수 있어요.</small>
+      {showLabel&&<ProductLabelCapture onAnalyzed={analyzedLabel} onDiscard={discardLabel} disabled={busy||!!savedItem}/>}
     </ItemPhotoEditor>
     {homes.length > 0 && <>
       <label htmlFor="targetHomeId">{item ? "물건이 있는 집" : "어느 집의 물건인가요? *"}</label>
@@ -69,18 +69,18 @@ export function HomeItemForm({ homeId, item, homes = [], requireHomeSelection = 
       </select>
       {item && <p className={styles.meta}>본인이 등록한 다른 집으로 이동할 수 있습니다. 연결된 수리·일정·비용·문서도 함께 이동합니다.</p>}
     </>}
-    <label htmlFor="name">물건명 *</label><input id="name" name="name" value={fields.name} onChange={event=>setFields({...fields,name:event.target.value})} maxLength={120} required />
+    <label htmlFor="name">물건명 *</label><input id="name" name="name" value={fields.name} onChange={event=>editField("name",event.target.value)} aria-describedby={labelForm.automatic.name?.confidence==="MEDIUM"?"name-label-check":undefined} maxLength={120} required />{confirmation("name")}
     <div className={styles.two}>
-      <div><label htmlFor="category">카테고리 *</label><select id="category" name="category" value={fields.category} onChange={event=>setFields({...fields,category:event.target.value})}>{Object.entries(categories).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></div>
+      <div><label htmlFor="category">카테고리 *</label><select id="category" name="category" value={fields.category} onChange={event=>editField("category",event.target.value)}>{Object.entries(categories).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select>{confirmation("category")}</div>
       <div><label htmlFor="status">상태</label><select id="status" name="status" defaultValue={item?.status ?? "USING"}>{Object.entries(statuses).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></div>
     </div>
     <div className={styles.two}>
-      <div><label htmlFor="brand">브랜드 · 제조사</label><input id="brand" name="brand" value={fields.brand} onChange={event=>setFields({...fields,brand:event.target.value})} maxLength={80}/></div>
-      <div><label htmlFor="modelName">모델명</label><input id="modelName" name="modelName" value={fields.modelName} onChange={event=>setFields({...fields,modelName:event.target.value})} maxLength={120}/></div>
+      <div><label htmlFor="brand">브랜드 · 제조사</label><input id="brand" name="brand" value={fields.brand} onChange={event=>editField("brand",event.target.value)} aria-describedby={labelForm.automatic.brand?.confidence==="MEDIUM"?"brand-label-check":undefined} maxLength={80}/>{confirmation("brand")}</div>
+      <div><label htmlFor="modelName">모델명</label><input id="modelName" name="modelName" value={fields.modelName} onChange={event=>editField("modelName",event.target.value)} aria-describedby={labelForm.automatic.modelName?.confidence==="MEDIUM"?"modelName-label-check":undefined} maxLength={120}/>{confirmation("modelName")}</div>
     </div>
     <div className={styles.two}>
-      <div><label htmlFor="manufacturedAt">제조일자</label><FormattedDateInput key={fields.manufacturedAt} id="manufacturedAt" name="manufacturedAt" aria-label="제조일자" defaultValue={fields.manufacturedAt}/></div>
-      <div><label htmlFor="serialNumber">시리얼번호</label><input id="serialNumber" name="serialNumber" value={fields.serialNumber} onChange={event=>setFields({...fields,serialNumber:event.target.value})} maxLength={120}/></div>
+      <div><label htmlFor="manufacturedAt">제조일자</label><FormattedDateInput id="manufacturedAt" name="manufacturedAt" aria-label="제조일자" value={fields.manufacturedAt} onValueChange={value=>editField("manufacturedAt",value)}/>{confirmation("manufacturedAt")}</div>
+      <div><label htmlFor="serialNumber">시리얼번호</label><input id="serialNumber" name="serialNumber" value={fields.serialNumber} onChange={event=>editField("serialNumber",event.target.value)} aria-describedby={labelForm.automatic.serialNumber?.confidence==="MEDIUM"?"serialNumber-label-check":undefined} maxLength={120}/>{confirmation("serialNumber")}</div>
     </div>
     <div className={styles.two}>
       <div><label htmlFor="purchaseDate">구매일</label><FormattedDateInput id="purchaseDate" name="purchaseDate" aria-label="구매일" defaultValue={formatDateForInput(item?.purchaseDate ?? null)} /></div>
