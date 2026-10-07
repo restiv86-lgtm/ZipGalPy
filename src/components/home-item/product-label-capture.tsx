@@ -76,6 +76,7 @@ export function ProductLabelCapture({onApply,disabled=false}:{onApply:(fields:La
         {key==="category"?<select id={`${inputId}-${key}`} value={fields[key]} onChange={event=>setFields({...fields,[key]:event.target.value})}><option value="">제안 없음</option>{Object.entries(categories).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select>:
           <input id={`${inputId}-${key}`} type={key==="manufacturedAt"?"date":"text"} value={fields[key]} maxLength={key==="brand"?80:120} onChange={event=>setFields({...fields,[key]:event.target.value})} />}
         {result.suggestions[key].confidence==="MEDIUM"&&<><p>후보: {key==="category"?categories[result.suggestions[key].value as keyof typeof categories]:result.suggestions[key].value}</p><button type="button" disabled={disabled} onClick={()=>setFields(current=>({...current,[key]:result.suggestions[key].value}))}>{labels[key]} 후보 확인 후 사용</button></>}
+        {result.suggestions[key].confidence==="LOW"&&result.suggestions[key].value&&<p>낮은 신뢰도 후보: {result.suggestions[key].value} · 원본 라벨을 확인하고 직접 입력해 주세요.</p>}
         <small>{result.suggestions[key].reason}</small>
       </div>)}
       <button type="button" disabled={disabled||aiBusy||!file} onClick={()=>{if(file){onApply(fields,file);setMessage("등록폼에 반영 요청했습니다. 입력 내용을 확인한 뒤 물건을 저장해 주세요.");}}}>확인한 정보를 등록폼에 반영</button>

@@ -1,6 +1,6 @@
 export type LabelFields = { brand:string; name:string; modelName:string; manufacturedAt:string; serialNumber:string; category:string };
 export type FieldKey = keyof LabelFields;
-export type LabelLine = { text:string; confidence:number; bbox?:{x0:number;y0:number;x1:number;y1:number} };
+export type LabelLine = { text:string; confidence:number; bbox?:{x0:number;y0:number;x1:number;y1:number}; words?:{text:string;bbox:{x0:number;y0:number;x1:number;y1:number}}[] };
 export type FieldSuggestion = { value:string; confidence:"HIGH"|"MEDIUM"|"LOW"; score:number; reason:string };
 export type LabelRecognition = { fields:LabelFields; suggestions:Record<FieldKey,FieldSuggestion>; confidence:number; text:string };
 export const emptyLabelFields=():LabelFields=>({brand:"",name:"",modelName:"",manufacturedAt:"",serialNumber:"",category:""});
@@ -26,7 +26,7 @@ function validValue(key:FieldKey,raw:string):string {
   return key==="brand"?brands.find(b=>b.pattern.test(value))?.name??value:value;
 }
 // Evidence scores are conservative heuristics, NOT calibrated accuracy probabilities.
-export function extractProductLabel(text:string,confidence:number,layout:LabelLine[]=[],corroboratingText?:string):LabelRecognition {
+export function extractProductLabel(text:string,confidence:number,layout:LabelLine[]=[],corroboratingText?:string,modelEvidence?:{value:string;score:number}|null):LabelRecognition {
   const fields=emptyLabelFields();
   const suggestions=Object.fromEntries(keys.map(key=>[key,{value:"",confidence:"LOW",score:0,reason:"확실한 라벨 값 없음"}])) as Record<FieldKey,FieldSuggestion>;
   const lines:LabelLine[]=layout.length?layout:text.split(/\r?\n/).filter(line=>line.trim()).map(text=>({text,confidence}));
@@ -40,7 +40,7 @@ export function extractProductLabel(text:string,confidence:number,layout:LabelLi
   for(const key of Object.keys(labels) as Exclude<FieldKey,"category">[]){
     const pattern=labels[key];
     lines.forEach((line,index)=>{
-      const clean=line.text.trim(),match=clean.match(pattern);if(!match)return;
+      const clean=line.text.trim().replace(/^[|│]+\s*/,""),match=clean.match(pattern);if(!match)return;
       const tail=clean.slice(match[0].length).trim();
       let value=validValue(key,tail),score=Math.min(98,line.confidence),reason="명시적 라벨과 같은 행의 값";
       if(!tail){
@@ -56,6 +56,7 @@ export function extractProductLabel(text:string,confidence:number,layout:LabelLi
       offer(key,value,score,reason);
     });
   }
+  if(modelEvidence)offer("modelName",validValue("modelName",modelEvidence.value),modelEvidence.score,"모델 라벨 바로 오른쪽 확대 인식 · 혼동 문자 치환 없음 · 사용자 확인 필요");
   if(!suggestions.brand.value&&!conflicts.has("brand")){const found=brands.filter(b=>b.pattern.test(text));if(found.length===1)offer("brand",found[0].name,Math.min(75,confidence),"로고/주변 브랜드 표기: 제조사 확인 필요");}
   const product=suggestions.name;
   const category=/(냉장고|세탁기|건조기|에어컨|청소기|텔레비전|\bTV\b|refrigerator|washing machine|dryer|air conditioner|vacuum)/i.test(product.value)?"APPLIANCE":/(모니터|노트북|컴퓨터|monitor|laptop|computer)/i.test(product.value)?"DIGITAL":/(의자|책상|식탁|소파|chair|desk|table|sofa)/i.test(product.value)?"FURNITURE":"";
