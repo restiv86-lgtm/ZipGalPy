@@ -27,6 +27,7 @@ model User {
   handledReports       CommunityReport[]  @relation("CommunityReportHandler")
   feedback             Feedback[]         @relation("FeedbackAuthor")
   handledFeedback      Feedback[]         @relation("FeedbackHandler")
+  fileAssets           FileAsset[]
 
   @@map("users")
 }
@@ -231,6 +232,7 @@ model MarketplacePost {
   apartment        Apartment             @relation(fields: [apartmentId], references: [id], onDelete: Cascade)
   sellerMember     ApartmentMember?      @relation("MarketplaceSeller", fields: [sellerMemberId], references: [id], onDelete: SetNull)
   sourceHomeItem   HomeItem?             @relation(fields: [sourceHomeItemId], references: [id], onDelete: SetNull)
+  attachments      Attachment[]
 
   @@index([apartmentId, status, createdAt])
   @@index([sellerMemberId])
@@ -289,6 +291,7 @@ model Home {
   expenses      HomeExpense[]
   contracts     HomeContract[]
   documents     HomeDocument[]
+  attachments   Attachment[]
 
   @@index([userId, createdAt])
   @@map("homes")
@@ -329,7 +332,7 @@ model HomeItem {
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
   home             Home              @relation(fields: [homeId], references: [id], onDelete: Cascade)
-  images           HomeItemImage[]
+  images           Attachment[]
   marketplacePosts MarketplacePost[]
   repairs          HomeRepair[]
   schedules        HomeSchedule[]
@@ -340,16 +343,67 @@ model HomeItem {
   @@map("home_items")
 }
 
-model HomeItemImage {
-  id         String   @id @default(cuid())
-  homeItemId String
-  storageKey String   @db.VarChar(500)
-  sortOrder  Int      @default(0)
-  createdAt  DateTime @default(now())
-  homeItem   HomeItem @relation(fields: [homeItemId], references: [id], onDelete: Cascade)
+// Reuses the existing table without deleting legacy rows or inventing file metadata.
+model Attachment {
+  id                String           @id @default(cuid())
+  homeItemId        String?
+  storageKey        String?          @db.VarChar(500)
+  fileAssetId       String?
+  homeId            String?
+  repairId          String?
+  expenseId         String?
+  contractId        String?
+  documentId        String?
+  marketplacePostId String?
+  purpose           String           @default("PHOTO") @db.VarChar(30)
+  sortOrder         Int              @default(0)
+  createdAt         DateTime         @default(now())
+  homeItem          HomeItem?        @relation(fields: [homeItemId], references: [id], onDelete: Cascade)
+  home              Home?            @relation(fields: [homeId], references: [id], onDelete: Cascade)
+  repair            HomeRepair?      @relation(fields: [repairId], references: [id], onDelete: Cascade)
+  expense           HomeExpense?     @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  contract          HomeContract?    @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  document          HomeDocument?    @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  marketplacePost   MarketplacePost? @relation(fields: [marketplacePostId], references: [id], onDelete: Cascade)
+  fileAsset         FileAsset?       @relation(fields: [fileAssetId], references: [id], onDelete: Restrict)
 
   @@index([homeItemId, sortOrder])
+  @@index([homeId])
+  @@index([repairId])
+  @@index([expenseId])
+  @@index([contractId])
+  @@index([documentId])
+  @@index([marketplacePostId])
+  @@index([fileAssetId])
   @@map("home_item_images")
+}
+
+enum FileAssetStatus {
+  PENDING
+  PROCESSING
+  READY
+  REJECTED
+}
+
+model FileAsset {
+  id           String          @id @default(cuid())
+  ownerId      String?
+  storeId      String          @db.VarChar(100)
+  storageKey   String          @unique @db.VarChar(500)
+  uploadKey    String          @unique @db.VarChar(500)
+  fileName     String          @db.VarChar(200)
+  mimeType     String          @db.VarChar(100)
+  byteSize     Int
+  status       FileAssetStatus @default(PENDING)
+  expiresAt    DateTime
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  owner        User?           @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  attachments  Attachment[]
+
+  @@index([ownerId, createdAt])
+  @@index([status, expiresAt])
+  @@map("file_assets")
 }
 
 enum HomeRepairType {
@@ -378,6 +432,7 @@ model HomeRepair {
   homeItem      HomeItem?      @relation(fields: [homeItemId], references: [id], onDelete: SetNull)
   schedules     HomeSchedule[]
   expenses      HomeExpense[]
+  attachments   Attachment[]
 
   @@index([homeId, repairDate])
   @@index([homeItemId, repairDate])
@@ -444,6 +499,7 @@ model HomeExpense {
   home          Home                @relation(fields: [homeId], references: [id], onDelete: Cascade)
   homeItem      HomeItem?           @relation(fields: [homeItemId], references: [id], onDelete: SetNull)
   repair        HomeRepair?         @relation(fields: [repairId], references: [id], onDelete: SetNull)
+  attachments   Attachment[]
 
   @@index([homeId, expenseDate])
   @@index([homeId, category, expenseDate])
@@ -485,6 +541,7 @@ model HomeContract {
   updatedAt      DateTime           @updatedAt
   home           Home               @relation(fields: [homeId], references: [id], onDelete: Cascade)
   documents      HomeDocument[]
+  attachments    Attachment[]
 
   @@index([homeId, status, endDate])
   @@map("home_contracts")
@@ -525,6 +582,7 @@ model HomeDocument {
   home           Home               @relation(fields: [homeId], references: [id], onDelete: Cascade)
   homeItem       HomeItem?          @relation(fields: [homeItemId], references: [id], onDelete: SetNull)
   contract       HomeContract?      @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  attachments    Attachment[]
 
   @@index([homeId, status, expiresAt])
   @@index([homeItemId])

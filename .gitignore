@@ -11,3 +11,4 @@ out/
 
 # Official source datasets are local import inputs, never repository assets.
 /data/
+.neon
