@@ -32,9 +32,22 @@ export const ItemPhotoEditor = forwardRef<ItemPhotoEditorHandle,{itemId?:string;
   function reorder(from:number,to:number){const next=[...photos];const [photo]=next.splice(from,1);next.splice(to,0,photo);setPhotos(next);}
   function remove(photo:Photo){if(photo.id)removed.current.add(photo.id);if(photo.file){URL.revokeObjectURL(photo.url);urls.current.delete(photo.url);}setPhotos(photos.filter(entry=>entry.key!==photo.key));}
   const locked=disabled||loading;
-  return <section className={styles.panel} aria-labelledby={`${inputId}-title`}><h2 id={`${inputId}-title`}>물건 사진</h2><p>첫 번째 사진이 대표사진입니다. 저장 버튼을 눌렀을 때 사진 변경사항도 반영됩니다.</p>
+  return <section className={styles.panel} aria-labelledby={`${inputId}-title`}>
+    <div className={styles.heading}><h2 id={`${inputId}-title`}>물건 사진</h2><span className={styles.count} aria-label={`사진 ${photos.length}장`}>{photos.length} / 10</span></div>
+    <p className={styles.help}>사진을 촬영하거나 앨범에서 여러 장 선택하세요.<br/>사진 변경사항은 물건을 저장할 때 반영됩니다.</p>
+    <div className={styles.pickers}>
+      <label className={`${styles.picker} ${styles.camera}`} htmlFor={`${inputId}-camera`} data-disabled={locked}><span aria-hidden="true">📷</span><strong>사진 촬영</strong><small>휴대폰 카메라 열기</small><input id={`${inputId}-camera`} aria-label="물건 사진 카메라 촬영" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" disabled={locked} onChange={event=>{const file=event.target.files?.[0];if(file)add(file);event.target.value="";}}/></label>
+      <label className={styles.picker} htmlFor={inputId} data-disabled={locked}><span aria-hidden="true">＋</span><strong>사진 추가</strong><small>앨범에서 여러 장 선택</small><input id={inputId} aria-label="물건 사진 여러 장 선택" type="file" multiple accept="image/jpeg,image/png,image/webp" disabled={locked} onChange={event=>{for(const file of event.target.files??[])add(file);event.target.value="";}}/></label>
+    </div>
     {loading&&<p role="status">기존 사진을 불러오는 중입니다.</p>}
-    <div className={styles.grid}>{photos.map((photo,index)=><article className={styles.photo} key={photo.key}><Image src={photo.url} alt={`${index===0?"대표사진: ":""}${photo.name}`} width={320} height={220} unoptimized/><strong>{index===0?"대표사진":`사진 ${index+1}`}</strong><div className={styles.actions}><button type="button" disabled={locked||index===0} onClick={()=>reorder(index,0)}>대표로</button><button type="button" aria-label={`${photo.name} 앞으로 이동`} disabled={locked||index===0} onClick={()=>reorder(index,index-1)}>앞으로</button><button type="button" aria-label={`${photo.name} 뒤로 이동`} disabled={locked||index===photos.length-1} onClick={()=>reorder(index,index+1)}>뒤로</button><button type="button" disabled={locked} onClick={()=>remove(photo)}>사진 삭제</button></div></article>)}</div>
-    <div className={styles.actions}><label htmlFor={inputId}>+ 사진 추가<input id={inputId} type="file" multiple accept="image/jpeg,image/png,image/webp" disabled={locked} onChange={event=>{for(const file of event.target.files??[])add(file);event.target.value="";}}/></label><label htmlFor={`${inputId}-camera`}>카메라 촬영<input id={`${inputId}-camera`} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" disabled={locked} onChange={event=>{const file=event.target.files?.[0];if(file)add(file);event.target.value="";}}/></label></div>
-    <p role="status" aria-live="polite">{message}</p>{children}</section>;
+    {!loading&&photos.length===0&&<div className={styles.empty}><span aria-hidden="true">▧</span><strong>물건 사진을 추가해 보세요</strong><p>첫 번째 사진이 목록에 표시되는 대표사진입니다.</p></div>}
+    <div className={styles.grid} aria-label="선택한 사진 미리보기">{photos.map((photo,index)=><article className={`${styles.photo} ${index===0?styles.cover:""}`} key={photo.key}>
+      <div className={styles.imageWrap}><Image src={photo.url} alt={`${index===0?"대표사진: ":""}${photo.name}`} width={320} height={220} unoptimized/>{index===0&&<span className={styles.coverBadge}>대표사진</span>}</div>
+      <strong className={styles.photoTitle}>사진 {index+1}</strong>
+      <div className={styles.actions}><button className={styles.representative} type="button" aria-label={`${photo.name} 대표사진으로 선택`} disabled={locked||index===0} onClick={()=>reorder(index,0)}>{index===0?"대표사진 선택됨":"대표사진으로"}</button><button type="button" aria-label={`사진 ${index+1} 순서를 앞으로 이동`} disabled={locked||index===0} onClick={()=>reorder(index,index-1)}>← 앞</button><button type="button" aria-label={`사진 ${index+1} 순서를 뒤로 이동`} disabled={locked||index===photos.length-1} onClick={()=>reorder(index,index+1)}>뒤 →</button><button className={styles.delete} type="button" aria-label={`사진 ${index+1} 삭제`} disabled={locked} onClick={()=>remove(photo)}>사진 삭제</button></div>
+    </article>)}</div>
+    {photos.length>1&&<p className={styles.help}>앞·뒤 버튼으로 순서를 바꾸거나 대표사진을 선택하세요.</p>}
+    <small className={styles.limit}>JPG · PNG · WebP / 사진당 최대 10MB</small>
+    {message&&<p className={styles.message} role="status" aria-live="polite">{message}</p>}
+    <div className={styles.labelEntry}>{children}</div></section>;
 });

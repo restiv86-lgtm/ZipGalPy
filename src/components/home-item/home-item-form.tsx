@@ -7,6 +7,7 @@ import { ProductLabelCapture } from "./product-label-capture";
 import { emptyLabelFields, type LabelFields } from "@/lib/product-label/extract";
 import { ItemPhotoEditor, type ItemPhotoEditorHandle } from "./item-photo-editor";
 import { AttachmentPanel } from "@/components/attachments/attachment-panel";
+import photoStyles from "./item-photos.module.css";
 import styles from "@/app/homes/[homeId]/items/items.module.css";
 import { FormattedCurrencyInput, FormattedDateInput } from "@/components/ui/formatted-inputs";
 import { formatDateForInput, parseCurrencyValue } from "@/lib/forms/format";
@@ -55,7 +56,8 @@ export function HomeItemForm({ homeId, item, homes = [], requireHomeSelection = 
 
   return <form className={styles.form} onSubmit={submit}>
     <ItemPhotoEditor ref={photoEditor} itemId={item?.id} disabled={busy||!!savedItem}>
-      <button type="button" className={styles.secondary} disabled={busy||!!savedItem} aria-expanded={showLabel} onClick={()=>setShowLabel(!showLabel)}>제품 라벨 촬영/분석</button>
+      <button type="button" className={photoStyles.labelToggle} disabled={busy||!!savedItem} aria-expanded={showLabel} onClick={()=>setShowLabel(!showLabel)}><span>제품 라벨 촬영/분석</span><span aria-hidden="true">{showLabel?"−":"＋"}</span></button>
+      <small className={photoStyles.labelHint}>명판의 제품 정보를 읽어 제안합니다. 확인 후 폼에 반영할 수 있어요.</small>
       {showLabel&&<ProductLabelCapture onApply={applyLabel} disabled={busy||!!savedItem}/>}
     </ItemPhotoEditor>
     {homes.length > 0 && <>
@@ -89,8 +91,10 @@ export function HomeItemForm({ homeId, item, homes = [], requireHomeSelection = 
     <p className={styles.meta}>구매가격과 개인 메모는 커뮤니티나 장터에 자동 공개되지 않습니다.</p>
     {item&&<AttachmentPanel target={{type:"item",id:item.id}} documentsOnly/>}
     {error && <p className={styles.error} role="alert">{error}</p>}
-    <button className={styles.primary} disabled={busy}>{busy?"저장 중…":savedItem?"사진 첨부만 재시도":item ? "수정 완료" : "물건 등록"}</button>
-    {!savedItem&&(busy?<button type="button" className={styles.secondary} disabled>취소</button>:<Link className={styles.secondary} href={item?`/homes/${homeId}/items/${item.id}`:"/items"}>취소</Link>)}
+    <div className={photoStyles.formActions}>
+      <button type="submit" className={`${styles.primary} ${photoStyles.saveAction}`} disabled={busy}>{busy?"저장 중…":savedItem?"사진 저장 재시도":item ? "변경사항 저장" : "등록하기"}</button>
+      {!savedItem&&(busy?<button type="button" className={`${styles.secondary} ${photoStyles.cancelAction}`} disabled>취소</button>:<Link className={`${styles.secondary} ${photoStyles.cancelAction}`} href={item?`/homes/${homeId}/items/${item.id}`:"/items"}>취소</Link>)}
+    </div>
     {savedItem&&<Link className={styles.secondary} href={`/homes/${savedItem.homeId}/items/${savedItem.id}`}>저장된 물건 보기</Link>}
   </form>;
 }
