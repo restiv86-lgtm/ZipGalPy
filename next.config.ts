@@ -11,7 +11,7 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   devIndicators: false,
   serverExternalPackages:["tesseract.js","tesseract.js-core"],
-  outputFileTracingIncludes:{"/api/product-label/ocr":["./public/ocr/lang/**/*",`${ocrPackage("tesseract.js")}/src/worker-script/node/**/*`,`${ocrPackage("tesseract.js-core")}/**/*`]},
+  outputFileTracingIncludes:{"/api/product-label/ocr":["./public/ocr/lang/**/*",`${ocrPackage("tesseract.js")}/src/**/*`,...["tesseract.js-core","regenerator-runtime","is-url","bmp-js","wasm-feature-detect","zlibjs"].map(name=>`${ocrPackage(name)}/**/*`)]},
 };
 
 export default nextConfig;
