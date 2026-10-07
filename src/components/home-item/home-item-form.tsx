@@ -26,10 +26,11 @@ export function HomeItemForm({ homeId, item, homes = [], requireHomeSelection = 
   const [showLabel,setShowLabel]=useState(false);
   const [savedItem,setSavedItem]=useState<{id:string;homeId:string}|null>(null);
   const [fields,setFields]=useState<LabelFields>(()=>({...emptyLabelFields(),name:item?.name??"",brand:item?.brand??"",modelName:item?.modelName??"",serialNumber:item?.serialNumber??"",manufacturedAt:formatDateForInput(item?.manufacturedAt??null),category:item?.category??"APPLIANCE"}));
-  function applyLabel(proposed:LabelFields,file:File) {
+  function applyLabel(proposed:LabelFields,file?:File) {
     const replacements=(Object.keys(proposed) as (keyof LabelFields)[]).some(key=>proposed[key]&&fields[key]&&fields[key]!==proposed[key]);
-    if(replacements&&!window.confirm("인식 제안으로 현재 입력된 일부 값을 바꿀까요? 빈 제안값은 기존 값을 지우지 않습니다."))return;
-    setFields(current=>({...current,...Object.fromEntries(Object.entries(proposed).filter(([,value])=>value))}));photoEditor.current?.add(file);
+    if(replacements&&!window.confirm("인식 제안으로 현재 입력된 일부 값을 바꿀까요? 빈 제안값은 기존 값을 지우지 않습니다."))return false;
+    setFields(current=>({...current,...Object.fromEntries(Object.entries(proposed).filter(([,value])=>value))}));if(file)photoEditor.current?.add(file);
+    return true;
   }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {

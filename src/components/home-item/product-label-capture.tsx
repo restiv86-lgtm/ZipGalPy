@@ -2,16 +2,18 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { emptyLabelFields, type LabelFields, type LabelRecognition } from "@/lib/product-label/extract";
+import { applyConfirmedCandidate } from "@/lib/product-label/apply-candidate";
 import styles from "./product-label.module.css";
 import { compareLabelResults, labelKeys, shouldOfferAi, type AiLabelResponse } from "@/lib/product-label/ai";
 
 const labels: Record<keyof LabelFields,string>={brand:"제조사",name:"제품명",modelName:"모델명",manufacturedAt:"제조일자",serialNumber:"시리얼번호",category:"카테고리 제안"};
 const categories={APPLIANCE:"가전",FURNITURE:"가구",KITCHEN:"주방",HOUSEHOLD:"생활용품",DIGITAL:"디지털",HOBBY:"취미",CHILDCARE:"육아",OTHER:"기타"};
-export function ProductLabelCapture({onApply,disabled=false}:{onApply:(fields:LabelFields,file:File)=>void;disabled?:boolean}) {
+export function ProductLabelCapture({onApply,disabled=false}:{onApply:(fields:LabelFields,file?:File)=>boolean;disabled?:boolean}) {
   const inputId=useId();
   const [file,setFile]=useState<File|null>(null),[busy,setBusy]=useState(false),[progress,setProgress]=useState(0);
   const [message,setMessage]=useState(""),[result,setResult]=useState<LabelRecognition|null>(null);
   const [fields,setFields]=useState<LabelFields>(emptyLabelFields);
+  const [dismissed,setDismissed]=useState<Partial<Record<keyof LabelFields,boolean>>>({});
   const controller=useRef<AbortController|null>(null),generation=useRef(0);
   const [aiEnabled,setAiEnabled]=useState(false),[showConsent,setShowConsent]=useState(false),[consent,setConsent]=useState(false),[aiBusy,setAiBusy]=useState(false),[aiResult,setAiResult]=useState<AiLabelResponse|null>(null);
   const aiController=useRef<AbortController|null>(null),aiLock=useRef(false);
@@ -44,14 +46,14 @@ export function ProductLabelCapture({onApply,disabled=false}:{onApply:(fields:La
     if(!file)return;
     const active=++generation.current;
     controller.current?.abort();const abort=new AbortController();controller.current=abort;
-    resetAi();setBusy(true);setMessage("인식 엔진 준비 중입니다. 첫 실행은 시간이 걸릴 수 있습니다.");setResult(null);setProgress(0);
+    resetAi();setDismissed({});setBusy(true);setMessage("인식 엔진 준비 중입니다. 첫 실행은 시간이 걸릴 수 있습니다.");setResult(null);setProgress(0);
     const timeout=setTimeout(()=>{if(generation.current===active){cancel();setMessage("인식 시간이 길어 중단했습니다. 사진을 다시 찍거나 직접 입력해 주세요.");}},90_000);
     try {
       const {browserLabelOcr}=await import("@/lib/product-label/browser-ocr");
       const extracted=await browserLabelOcr.recognize(file,abort.signal,value=>{if(generation.current===active){setProgress(value);setMessage("제품 라벨을 읽고 있습니다.");}});
       if(generation.current!==active)return;
       setResult(extracted);setFields(extracted.fields);
-      setMessage(Object.values(extracted.suggestions).some(suggestion=>suggestion.confidence!=="LOW")?"HIGH만 채웠습니다. 확인 필요 후보는 개별 확인 후 선택하거나 직접 수정해 주세요.":"확실히 읽은 정보가 없습니다. 사진을 다시 찍거나 직접 입력해 주세요.");
+      setMessage(Object.values(extracted.suggestions).some(suggestion=>suggestion.value)?"인식 후보를 찾았습니다. 낮거나 중간 신뢰도의 후보는 사진과 비교한 뒤 직접 적용해 주세요. 자동 저장되지 않습니다.":"확실히 읽은 정보가 없습니다. 사진을 다시 찍거나 직접 입력해 주세요.");
     } catch(error) {if(generation.current===active)setMessage(error instanceof Error?error.message:"인식하지 못했습니다. 직접 입력해 주세요.");}
     finally {clearTimeout(timeout);if(generation.current===active)setBusy(false);}
   }
@@ -72,14 +74,35 @@ export function ProductLabelCapture({onApply,disabled=false}:{onApply:(fields:La
     {aiResult&&result&&<section aria-label="OCR과 AI 결과 비교"><h3>AI 결과 비교 · 확인 후 선택</h3>{labelKeys.map(key=>{const comparison=compareLabelResults(result,aiResult.label)[key];return <div key={key}><h4>{labels[key]} · {comparison.agreement==="MATCH"?"일치 확인":comparison.agreement==="DIFFERENT"?"결과 다름 · 확인 필요":"확인 필요"}</h4><p>OCR: {comparison.ocr||"미추출"}<br/>AI: {key==="category"&&comparison.ai?categories[comparison.ai as keyof typeof categories]:comparison.ai||"미추출"}</p><small>사진 근거: {comparison.evidence||"없음"} · {comparison.confidence}</small>{comparison.ai&&<button type="button" disabled={disabled||aiBusy} onClick={()=>setFields(current=>({...current,[key]:comparison.ai}))}>{labels[key]} AI 제안 확인 후 사용</button>}</div>;})}<p>남은 일일 한도: {aiResult.remaining}회 · 이번 요청 예상 API 비용: {aiResult.usage.estimatedUsd===null?"확인 불가":"$"+aiResult.usage.estimatedUsd.toFixed(6)}</p></section>}
     {result&&<div className={styles.review}>
       <p>자동인식 제안이며 정확성을 보장하지 않습니다. 제조일자가 일부만 있거나 읽지 못한 값은 비워 둡니다.</p>
-      {(Object.keys(labels) as (keyof LabelFields)[]).map(key=><div key={key}><label htmlFor={`${inputId}-${key}`}>{labels[key]} · {result.suggestions[key].confidence==="HIGH"?"HIGH":result.suggestions[key].confidence==="MEDIUM"?"확인 필요 · MEDIUM":"제안 없음 · LOW"}</label>
+      <section className={styles.candidates} aria-label="확인 필요 후보">
+        <h3>확인 필요 후보</h3>
+        <p>사진과 비교한 후 적용해 주세요. 후보를 무시해도 직접 입력할 수 있습니다.</p>
+        {(Object.keys(labels) as (keyof LabelFields)[]).filter(key=>result.suggestions[key].value&&result.suggestions[key].confidence!=="HIGH").map(key=>{
+          const suggestion=result.suggestions[key];
+          return <article className={styles.candidate} key={key} aria-label={`${labels[key]} 후보`}>
+            <h4>{labels[key]} 후보</h4>
+            <strong>{key==="category"?categories[suggestion.value as keyof typeof categories]:suggestion.value}</strong>
+            <p>{suggestion.confidence==="LOW"?"신뢰도 낮음":"확인 필요"} · 사진과 비교해 주세요</p>
+            <small>{suggestion.reason}</small>
+            {dismissed[key]?<><p>이 후보는 무시했습니다.</p><button type="button" disabled={disabled||busy||aiBusy} onClick={()=>setDismissed(current=>({...current,[key]:false}))}>후보 다시 보기</button></>:<div className={styles.actions}>
+              <button type="button" disabled={disabled||busy||aiBusy} onClick={()=>{
+                if(applyConfirmedCandidate(key,suggestion,onApply)){
+                  setFields(current=>({...current,[key]:suggestion.value}));
+                  setMessage(`${labels[key]} 입력칸에 반영했습니다. 확인 후 물건을 저장해 주세요. 아직 저장되지 않았습니다.`);
+                }
+              }}>{labels[key]}에 적용</button>
+              <button type="button" className={styles.secondary} disabled={disabled||busy||aiBusy} onClick={()=>setDismissed(current=>({...current,[key]:true}))}>이 후보 무시</button>
+            </div>}
+          </article>;
+        })}
+        {!Object.values(result.suggestions).some(suggestion=>suggestion.value&&suggestion.confidence!=="HIGH")&&<p>확인 필요 후보가 없습니다. 아래에서 직접 입력할 수 있습니다.</p>}
+      </section>
+      {(Object.keys(labels) as (keyof LabelFields)[]).map(key=><div key={key}><label htmlFor={`${inputId}-${key}`}>{labels[key]} · {result.suggestions[key].confidence==="HIGH"?"HIGH":result.suggestions[key].value?"확인 필요 후보":"제안 없음"}</label>
         {key==="category"?<select id={`${inputId}-${key}`} value={fields[key]} onChange={event=>setFields({...fields,[key]:event.target.value})}><option value="">제안 없음</option>{Object.entries(categories).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select>:
           <input id={`${inputId}-${key}`} type={key==="manufacturedAt"?"date":"text"} value={fields[key]} maxLength={key==="brand"?80:120} onChange={event=>setFields({...fields,[key]:event.target.value})} />}
-        {result.suggestions[key].confidence==="MEDIUM"&&<><p>후보: {key==="category"?categories[result.suggestions[key].value as keyof typeof categories]:result.suggestions[key].value}</p><button type="button" disabled={disabled} onClick={()=>setFields(current=>({...current,[key]:result.suggestions[key].value}))}>{labels[key]} 후보 확인 후 사용</button></>}
-        {result.suggestions[key].confidence==="LOW"&&result.suggestions[key].value&&<p>낮은 신뢰도 후보: {result.suggestions[key].value} · 원본 라벨을 확인하고 직접 입력해 주세요.</p>}
         <small>{result.suggestions[key].reason}</small>
       </div>)}
-      <button type="button" disabled={disabled||aiBusy||!file} onClick={()=>{if(file){onApply(fields,file);setMessage("등록폼에 반영 요청했습니다. 입력 내용을 확인한 뒤 물건을 저장해 주세요.");}}}>확인한 정보를 등록폼에 반영</button>
+      <button type="button" disabled={disabled||aiBusy||!file} onClick={()=>{if(file&&onApply(fields,file))setMessage("등록폼에 반영했습니다. 입력 내용을 확인한 뒤 물건을 저장해 주세요.");}}>확인한 정보를 등록폼에 반영</button>
       <details><summary>인식된 글자 보기</summary><pre>{result.text.slice(0,6000)}</pre></details>
     </div>}
     <small>JPG/PNG/WebP · 최대 10MB. 인식 없이 기존 등록폼을 직접 작성할 수도 있습니다.</small>
