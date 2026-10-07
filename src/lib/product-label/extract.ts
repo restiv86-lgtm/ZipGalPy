@@ -56,7 +56,7 @@ export function extractProductLabel(text:string,confidence:number,layout:LabelLi
       offer(key,value,score,reason);
     });
   }
-  if(modelEvidence)offer("modelName",validValue("modelName",modelEvidence.value),modelEvidence.score,"모델 라벨 바로 오른쪽 확대 인식 · 혼동 문자 치환 없음 · 사용자 확인 필요");
+  if(modelEvidence)offer("modelName",validValue("modelName",modelEvidence.value),modelEvidence.score,"모델 라벨 바로 오른쪽 원본/보정 확대 인식 · 혼동 문자 치환 없음 · 사용자 확인 필요");
   if(!suggestions.brand.value&&!conflicts.has("brand")){const found=brands.filter(b=>b.pattern.test(text));if(found.length===1)offer("brand",found[0].name,Math.min(75,confidence),"로고/주변 브랜드 표기: 제조사 확인 필요");}
   const product=suggestions.name;
   const category=/(냉장고|세탁기|건조기|에어컨|청소기|텔레비전|\bTV\b|refrigerator|washing machine|dryer|air conditioner|vacuum)/i.test(product.value)?"APPLIANCE":/(모니터|노트북|컴퓨터|monitor|laptop|computer)/i.test(product.value)?"DIGITAL":/(의자|책상|식탁|소파|chair|desk|table|sofa)/i.test(product.value)?"FURNITURE":"";

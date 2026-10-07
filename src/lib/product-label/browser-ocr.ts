@@ -58,6 +58,16 @@ export const browserLabelOcr: LabelRecognitionProvider = {
           }finally{strip.width=0;strip.height=0;}
         }
       }
+      await worker.setParameters({tessedit_pageseg_mode:library.PSM.SINGLE_WORD});
+      for(const region of regions){
+        if(cancelled)throw new Error("인식을 취소했습니다.");
+        const crop=document.createElement("canvas");crop.width=region.width*6;crop.height=region.height*6;
+        try{
+          const ctx=crop.getContext("2d");if(!ctx)continue;
+          ctx.drawImage(canvas,region.left,region.top,region.width,region.height,0,0,crop.width,crop.height);
+          const original=await worker.recognize(crop,{}, {text:true});readings.push({text:original.data.text,confidence:original.data.confidence});
+        }finally{crop.width=0;crop.height=0;}
+      }
       await worker.reinitialize("eng");
       await worker.setParameters({tessedit_pageseg_mode:library.PSM.SINGLE_LINE});
       for(const region of regions)for(const zoom of [4,6]){
