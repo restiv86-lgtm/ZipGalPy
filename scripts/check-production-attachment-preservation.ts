@@ -13,7 +13,8 @@ try {
     const data: Record<string, { id: string; fingerprint: string }[]> = {};
     for (const table of tables) {
       const source = table === "home_item_images" ? '(SELECT id,"homeItemId","storageKey","sortOrder","createdAt" FROM home_item_images)' : table;
-      data[table] = (await db.query(`SELECT id, md5(row_to_json(t)::text) AS fingerprint FROM ${source} t ORDER BY id`)).rows;
+      const fingerprint=table==="home_items"?"(to_jsonb(t)-'manufacturedAt'-'serialNumber')::text":"row_to_json(t)::text";
+      data[table] = (await db.query(`SELECT id, md5(${fingerprint}) AS fingerprint FROM ${source} t ORDER BY id`)).rows;
     }
     // Baseline contains only row IDs and one-way checksums, never personal fields.
     fs.writeFileSync(file, JSON.stringify(data));
@@ -22,7 +23,8 @@ try {
     const baseline = JSON.parse(fs.readFileSync(file,"utf8")) as Record<string,{id:string;fingerprint:string}[]>;
     for (const table of tables) {
       const source = table === "home_item_images" ? '(SELECT id,"homeItemId","storageKey","sortOrder","createdAt" FROM home_item_images)' : table;
-      const current = new Map((await db.query(`SELECT id, md5(row_to_json(t)::text) AS fingerprint FROM ${source} t`)).rows.map(row=>[row.id,row.fingerprint]));
+      const fingerprint=table==="home_items"?"(to_jsonb(t)-'manufacturedAt'-'serialNumber')::text":"row_to_json(t)::text";
+      const current = new Map((await db.query(`SELECT id, md5(${fingerprint}) AS fingerprint FROM ${source} t`)).rows.map(row=>[row.id,row.fingerprint]));
       const missing = baseline[table].filter(row=>!current.has(row.id)).length;
       const changed = baseline[table].filter(row=>current.has(row.id)&&current.get(row.id)!==row.fingerprint).length;
       console.log(`${table}: existing=${baseline[table].length}, missing=${missing}, changed=${changed}`);

@@ -6,8 +6,9 @@ import pg from "pg";
 import argon2 from "argon2";
 import sharp from "sharp";
 
-const env=dotenv.parse(fs.readFileSync(".env.preview.label-ocr.local"));assert.equal(env.NEON_BRANCH,"preview/codex/product-label-ocr-20261007");
-const origin=process.env.ITEM_PHOTO_PREVIEW_ORIGIN;assert.ok(origin?.endsWith("-zip-gal-py.vercel.app")&&!origin.includes("zipgalpy.vercel.app"));
+const production=process.env.ITEM_PHOTO_PRODUCTION==="1";if(production)assert.ok(process.argv.includes("--approved-production-test"));
+const env=dotenv.parse(fs.readFileSync(production?".env.production.attachments-db":".env.preview.label-ocr.local"));assert.equal(env.NEON_BRANCH,production?"main":"preview/codex/product-label-ocr-20261007");
+const origin=production?"https://zipgalpy.vercel.app":process.env.ITEM_PHOTO_PREVIEW_ORIGIN;assert.ok(production||origin?.endsWith("-zip-gal-py.vercel.app")&&!origin.includes("zipgalpy.vercel.app"));
 const db=new pg.Pool({connectionString:env.DATABASE_URL});const prefix=`photo-ui-${randomUUID()}`,users=[`${prefix}-a`,`${prefix}-b`],home=`${prefix}-home`,item=`${prefix}-item`,market=`${prefix}-market`;
 const password=`${randomUUID()}Aa!`,jars=users.map(()=>new Map<string,string>()),attachments:string[]=[];
 function cookies(response:Response,jar:Map<string,string>){for(const cookie of response.headers.getSetCookie()){const pair=cookie.split(";")[0],i=pair.indexOf("=");jar.set(pair.slice(0,i),pair.slice(i+1));}}
@@ -23,7 +24,8 @@ try{
   await db.query('INSERT INTO home_items(id,"homeId",name,category,"updatedAt") VALUES($1,$2,$3,$4,NOW())',[item,home,"사진 테스트 물건","OTHER"]);
   for(const path of [`/homes/${home}/items/new`,`/homes/${home}/items/${item}/edit`]){const r=await request(path,jars[0]);assert.equal(r.status,200);const html=await r.text();assert.ok(html.includes("물건 사진")&&html.includes("제품 라벨 촬영/분석")&&html.includes("카메라 촬영"));}
   console.log("PASS form HTML: photo editor and label entry on create/edit (not a browser interaction test)");
-  for(const color of ["green","blue"]){const bytes=await sharp({create:{width:32,height:24,channels:3,background:color}}).png().toBuffer();const r=await request("/api/attachments",jars[0],"POST",{target:{type:"item",id:item},fileName:`${color}.png`,mimeType:"image/png",byteSize:bytes.length});assert.equal(r.status,200);const auth=await r.json();attachments.push(auth.attachmentId);assert.equal((await db.query('SELECT "storeId" FROM file_assets WHERE id=$1',[auth.assetId])).rows[0].storeId,"store_uEera8vwhtNDV6U0");const put=await fetch(auth.uploadUrl,{method:"PUT",headers:{"Content-Type":"image/png"},body:bytes});assert.ok(put.ok);assert.equal((await request("/api/attachments/finalize",jars[0],"POST",{assetId:auth.assetId})).status,200);}
+  if(production){const config=await(await request("/api/product-label/analyze",jars[0])).json();assert.equal(config.enabled,false);console.log("PASS Production Gemini disabled; no AI calls");}
+  for(const color of ["green","blue"]){const bytes=await sharp({create:{width:32,height:24,channels:3,background:color}}).png().toBuffer();const r=await request("/api/attachments",jars[0],"POST",{target:{type:"item",id:item},fileName:`${color}.png`,mimeType:"image/png",byteSize:bytes.length});assert.equal(r.status,200);const auth=await r.json();attachments.push(auth.attachmentId);assert.equal((await db.query('SELECT "storeId" FROM file_assets WHERE id=$1',[auth.assetId])).rows[0].storeId,production?"store_XnewGIDLU2gG2jWt":"store_uEera8vwhtNDV6U0");const put=await fetch(auth.uploadUrl,{method:"PUT",headers:{"Content-Type":"image/png"},body:bytes});assert.ok(put.ok);assert.equal((await request("/api/attachments/finalize",jars[0],"POST",{assetId:auth.assetId})).status,200);}
   const reversed=[...attachments].reverse(),body={target:{type:"item",id:item},ids:reversed};
   assert.equal((await request("/api/attachments/order",undefined,"PATCH",body)).status,401);
   assert.equal((await request("/api/attachments/order",jars[1],"PATCH",body)).status,404);
@@ -38,5 +40,5 @@ try{
 }finally{
   await db.query('DELETE FROM marketplace_posts WHERE id=$1',[market]);
   for(const attachmentId of attachments){const response=await request(`/api/attachments/${attachmentId}`,jars[0],"DELETE");assert.ok([200,404].includes(response.status),"Fixture photo cleanup failed; preserve fixture for follow-up");}
-  await db.query('DELETE FROM users WHERE id=ANY($1::text[])',[users]);const after=(await db.query('SELECT (SELECT COUNT(*)::int FROM users) AS users,(SELECT COUNT(*)::int FROM homes) AS homes,(SELECT COUNT(*)::int FROM home_items) AS items')).rows[0];assert.deepEqual(after,baseline);await db.end();console.log("PASS exact Preview fixtures cleaned and existing user/home/item counts preserved; no AI calls or Production access");
+  await db.query('DELETE FROM users WHERE id=ANY($1::text[])',[users]);const after=(await db.query('SELECT (SELECT COUNT(*)::int FROM users) AS users,(SELECT COUNT(*)::int FROM homes) AS homes,(SELECT COUNT(*)::int FROM home_items) AS items')).rows[0];assert.deepEqual(after,baseline);await db.end();console.log(`PASS exact ${production?"Production":"Preview"} fixtures cleaned and existing user/home/item counts preserved; no AI calls`);
 }
