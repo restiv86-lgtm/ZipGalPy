@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ProductLabelCapture } from "./product-label-capture";
 import { emptyLabelFields, type LabelFields } from "@/lib/product-label/extract";
-import { attachItemLabel } from "@/lib/attachments/upload-client";
+import { ItemPhotoEditor, type ItemPhotoEditorHandle } from "./item-photo-editor";
+import { AttachmentPanel } from "@/components/attachments/attachment-panel";
 import styles from "@/app/homes/[homeId]/items/items.module.css";
 import { FormattedCurrencyInput, FormattedDateInput } from "@/components/ui/formatted-inputs";
 import { formatDateForInput, parseCurrencyValue } from "@/lib/forms/format";
@@ -20,19 +21,20 @@ export function HomeItemForm({ homeId, item, homes = [], requireHomeSelection = 
   const [selectedHomeId, setSelectedHomeId] = useState(initialHomeId);
   const [error, setError] = useState("");
   const [busy,setBusy]=useState(false);
-  const [labelFile,setLabelFile]=useState<File|null>(null);
+  const photoEditor=useRef<ItemPhotoEditorHandle>(null);
+  const [showLabel,setShowLabel]=useState(false);
   const [savedItem,setSavedItem]=useState<{id:string;homeId:string}|null>(null);
   const [fields,setFields]=useState<LabelFields>(()=>({...emptyLabelFields(),name:item?.name??"",brand:item?.brand??"",modelName:item?.modelName??"",serialNumber:item?.serialNumber??"",manufacturedAt:formatDateForInput(item?.manufacturedAt??null),category:item?.category??"APPLIANCE"}));
   function applyLabel(proposed:LabelFields,file:File) {
     const replacements=(Object.keys(proposed) as (keyof LabelFields)[]).some(key=>proposed[key]&&fields[key]&&fields[key]!==proposed[key]);
     if(replacements&&!window.confirm("인식 제안으로 현재 입력된 일부 값을 바꿀까요? 빈 제안값은 기존 값을 지우지 않습니다."))return;
-    setFields(current=>({...current,...Object.fromEntries(Object.entries(proposed).filter(([,value])=>value))}));setLabelFile(file);
+    setFields(current=>({...current,...Object.fromEntries(Object.entries(proposed).filter(([,value])=>value))}));photoEditor.current?.add(file);
   }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if(busy)return;
-    if(savedItem){setBusy(true);try{if(labelFile)await attachItemLabel(labelFile,savedItem.id);router.push(`/homes/${savedItem.homeId}/items/${savedItem.id}`);router.refresh();}catch{setError("물건은 저장됐지만 사진 첨부가 실패했습니다. 사진만 재시도하거나 저장된 물건으로 이동해 주세요.");}finally{setBusy(false);}return;}
+    if(savedItem){setBusy(true);try{await photoEditor.current?.save(savedItem.id);router.push(`/homes/${savedItem.homeId}/items/${savedItem.id}`);router.refresh();}catch{setError("물건 정보는 저장됐지만 사진 변경사항 일부가 반영되지 않았습니다. 사진 저장을 재시도하거나 저장된 물건으로 이동해 주세요.");}finally{setBusy(false);}return;}
     const form = new FormData(event.currentTarget);
     const targetHomeId = String(form.get("targetHomeId") ?? selectedHomeId);
     const requestHomeId = item ? homeId : targetHomeId;
@@ -44,7 +46,7 @@ export function HomeItemForm({ homeId, item, homes = [], requireHomeSelection = 
     const data = await response.json();
     if (!response.ok) { setError(data.message); return; }
     const saved={id:item?.id??data.item.id,homeId:data.item.homeId??requestHomeId};setSavedItem(saved);
-    if(labelFile) {try{await attachItemLabel(labelFile,saved.id);}catch{setError("물건은 저장됐지만 사진 첨부가 실패했습니다. 사진만 재시도하거나 저장된 물건으로 이동해 주세요.");return;}}
+    try{await photoEditor.current?.save(saved.id);}catch{setError("물건 정보는 저장됐지만 사진 변경사항 일부가 반영되지 않았습니다. 사진 저장을 재시도하거나 저장된 물건으로 이동해 주세요.");return;}
     router.push(`/homes/${data.item.homeId ?? requestHomeId}/items/${item?.id ?? data.item.id}`);
     router.refresh();
     } catch {setError("요청을 처리하지 못했습니다. 입력 내용을 확인하고 다시 시도해 주세요.");}
@@ -52,7 +54,10 @@ export function HomeItemForm({ homeId, item, homes = [], requireHomeSelection = 
   }
 
   return <form className={styles.form} onSubmit={submit}>
-    {!item&&<ProductLabelCapture onApply={applyLabel} disabled={busy||!!savedItem}/>}
+    <ItemPhotoEditor ref={photoEditor} itemId={item?.id} disabled={busy||!!savedItem}>
+      <button type="button" className={styles.secondary} disabled={busy||!!savedItem} aria-expanded={showLabel} onClick={()=>setShowLabel(!showLabel)}>제품 라벨 촬영/분석</button>
+      {showLabel&&<ProductLabelCapture onApply={applyLabel} disabled={busy||!!savedItem}/>}
+    </ItemPhotoEditor>
     {homes.length > 0 && <>
       <label htmlFor="targetHomeId">{item ? "물건이 있는 집" : "어느 집의 물건인가요? *"}</label>
       <select id="targetHomeId" name="targetHomeId" value={selectedHomeId} onChange={(event) => setSelectedHomeId(event.target.value)} required>
@@ -74,7 +79,6 @@ export function HomeItemForm({ homeId, item, homes = [], requireHomeSelection = 
       <div><label htmlFor="manufacturedAt">제조일자</label><FormattedDateInput key={fields.manufacturedAt} id="manufacturedAt" name="manufacturedAt" aria-label="제조일자" defaultValue={fields.manufacturedAt}/></div>
       <div><label htmlFor="serialNumber">시리얼번호</label><input id="serialNumber" name="serialNumber" value={fields.serialNumber} onChange={event=>setFields({...fields,serialNumber:event.target.value})} maxLength={120}/></div>
     </div>
-    {labelFile&&<p className={styles.meta}>선택한 라벨 사진은 저장 후 본인만 볼 수 있는 첨부파일로 보관됩니다.</p>}
     <div className={styles.two}>
       <div><label htmlFor="purchaseDate">구매일</label><FormattedDateInput id="purchaseDate" name="purchaseDate" aria-label="구매일" defaultValue={formatDateForInput(item?.purchaseDate ?? null)} /></div>
       <div><label htmlFor="purchasePrice">구매가격</label><FormattedCurrencyInput id="purchasePrice" name="purchasePrice" aria-label="구매가격" defaultValue={item?.purchasePrice?.toString() ?? ""} /></div>
@@ -83,8 +87,10 @@ export function HomeItemForm({ homeId, item, homes = [], requireHomeSelection = 
     <label htmlFor="warrantyUntil">보증만료일</label><FormattedDateInput id="warrantyUntil" name="warrantyUntil" aria-label="보증만료일" defaultValue={formatDateForInput(item?.warrantyUntil ?? null)} />
     <label htmlFor="memo">개인 메모</label><textarea id="memo" name="memo" defaultValue={item?.memo ?? ""} />
     <p className={styles.meta}>구매가격과 개인 메모는 커뮤니티나 장터에 자동 공개되지 않습니다.</p>
+    {item&&<AttachmentPanel target={{type:"item",id:item.id}} documentsOnly/>}
     {error && <p className={styles.error} role="alert">{error}</p>}
     <button className={styles.primary} disabled={busy}>{busy?"저장 중…":savedItem?"사진 첨부만 재시도":item ? "수정 완료" : "물건 등록"}</button>
+    {!savedItem&&<Link className={styles.secondary} href={item?`/homes/${homeId}/items/${item.id}`:"/items"}>취소</Link>}
     {savedItem&&<Link className={styles.secondary} href={`/homes/${savedItem.homeId}/items/${savedItem.id}`}>저장된 물건 보기</Link>}
   </form>;
 }

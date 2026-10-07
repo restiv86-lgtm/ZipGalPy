@@ -67,8 +67,8 @@ export async function POST(request: Request) {
       ownerId: userId, storeId, uploadKey, storageKey: `files/${key}`, expiresAt,
       fileName: input.fileName.replace(/[\\/\u0000-\u001f\u007f]/g, "_"), mimeType: input.mimeType, byteSize: input.byteSize,
       attachments: { create: { ...targetWhere(input.target), purpose: input.purpose } },
-      }, select: { id: true } });
+      }, select: { id: true, attachments: { select: { id: true } } } });
     });
-    return Response.json({ assetId: asset.id, uploadUrl: presignedUrl }, { headers: { "Cache-Control": "no-store" } });
+    return Response.json({ assetId: asset.id, attachmentId: asset.attachments[0].id, uploadUrl: presignedUrl }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) { return attachmentError(error); }
 }

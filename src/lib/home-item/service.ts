@@ -19,7 +19,7 @@ export async function listAllOwnedItems(userId: string, requestedHomeId?: string
   const homeId = requestedHomeId && homes.some((home) => home.id === requestedHomeId) ? requestedHomeId : undefined;
   const items = await prisma.homeItem.findMany({
     where: { home: { userId }, ...(homeId ? { homeId } : {}) },
-    include: { home: { select: { id: true, name: true } } },
+    include: { home: { select: { id: true, name: true } }, images: { where: {fileAsset:{status:"READY",storeId:process.env.BLOB_STORE_ID,mimeType:{startsWith:"image/"}}},select:{id:true},orderBy:[{sortOrder:"asc"},{createdAt:"asc"}],take:1 } },
     orderBy: { createdAt: "desc" },
   });
   return { homes, items, homeId };
