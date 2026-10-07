@@ -90,7 +90,7 @@ export function HomeItemForm({ homeId, item, homes = [], requireHomeSelection = 
     {item&&<AttachmentPanel target={{type:"item",id:item.id}} documentsOnly/>}
     {error && <p className={styles.error} role="alert">{error}</p>}
     <button className={styles.primary} disabled={busy}>{busy?"저장 중…":savedItem?"사진 첨부만 재시도":item ? "수정 완료" : "물건 등록"}</button>
-    {!savedItem&&<Link className={styles.secondary} href={item?`/homes/${homeId}/items/${item.id}`:"/items"}>취소</Link>}
+    {!savedItem&&(busy?<button type="button" className={styles.secondary} disabled>취소</button>:<Link className={styles.secondary} href={item?`/homes/${homeId}/items/${item.id}`:"/items"}>취소</Link>)}
     {savedItem&&<Link className={styles.secondary} href={`/homes/${savedItem.homeId}/items/${savedItem.id}`}>저장된 물건 보기</Link>}
   </form>;
 }
