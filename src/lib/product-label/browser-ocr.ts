@@ -29,9 +29,13 @@ export const browserLabelOcr: LabelRecognitionProvider = {
       });
       if(cancelled)throw new Error("인식을 취소했습니다.");
       await worker.setParameters({tessedit_pageseg_mode:library.PSM.AUTO,preserve_interword_spaces:"1"});
-      const {data}=await worker.recognize(canvas);
+      const {data}=await worker.recognize(canvas,{}, {text:true,blocks:true});
       if(cancelled)throw new Error("인식을 취소했습니다.");
-      return extractProductLabel(data.text,data.confidence);
+      await worker.setParameters({tessedit_pageseg_mode:library.PSM.SPARSE_TEXT});
+      const second=await worker.recognize(canvas,{}, {text:true});
+      if(cancelled)throw new Error("인식을 취소했습니다.");
+      const lines=(data.blocks??[]).flatMap(block=>block.paragraphs.flatMap(paragraph=>paragraph.lines.map(line=>({text:line.text,confidence:Math.min(line.confidence,...line.words.map(word=>word.confidence)),bbox:line.bbox}))));
+      return extractProductLabel(data.text,data.confidence,lines,second.data.text);
     } finally {signal.removeEventListener("abort",abort);if(worker)await worker.terminate().catch(()=>undefined);canvas.width=0;canvas.height=0;}
   },
 };

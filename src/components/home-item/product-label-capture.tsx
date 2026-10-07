@@ -25,7 +25,7 @@ export function ProductLabelCapture({onApply,disabled=false}:{onApply:(fields:La
       const extracted=await browserLabelOcr.recognize(file,abort.signal,value=>{if(generation.current===active){setProgress(value);setMessage("제품 라벨을 읽고 있습니다.");}});
       if(generation.current!==active)return;
       setResult(extracted);setFields(extracted.fields);
-      setMessage(Object.values(extracted.fields).some(Boolean)?"아래 제안 내용을 확인·수정한 뒤 등록폼에 반영해 주세요.":"확실히 읽은 정보가 없습니다. 사진을 다시 찍거나 직접 입력해 주세요.");
+      setMessage(Object.values(extracted.suggestions).some(suggestion=>suggestion.confidence!=="LOW")?"HIGH만 채웠습니다. 확인 필요 후보는 개별 확인 후 선택하거나 직접 수정해 주세요.":"확실히 읽은 정보가 없습니다. 사진을 다시 찍거나 직접 입력해 주세요.");
     } catch(error) {if(generation.current===active)setMessage(error instanceof Error?error.message:"인식하지 못했습니다. 직접 입력해 주세요.");}
     finally {clearTimeout(timeout);if(generation.current===active)setBusy(false);}
   }
@@ -43,12 +43,14 @@ export function ProductLabelCapture({onApply,disabled=false}:{onApply:(fields:La
     <p role="status" aria-live="polite">{message}</p>
     {result&&<div className={styles.review}>
       <p>자동인식 제안이며 정확성을 보장하지 않습니다. 제조일자가 일부만 있거나 읽지 못한 값은 비워 둡니다.</p>
-      {(Object.keys(labels) as (keyof LabelFields)[]).map(key=><label key={key} htmlFor={`${inputId}-${key}`}>{labels[key]}
+      {(Object.keys(labels) as (keyof LabelFields)[]).map(key=><div key={key}><label htmlFor={`${inputId}-${key}`}>{labels[key]} · {result.suggestions[key].confidence==="HIGH"?"HIGH":result.suggestions[key].confidence==="MEDIUM"?"확인 필요 · MEDIUM":"제안 없음 · LOW"}</label>
         {key==="category"?<select id={`${inputId}-${key}`} value={fields[key]} onChange={event=>setFields({...fields,[key]:event.target.value})}><option value="">제안 없음</option>{Object.entries(categories).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select>:
           <input id={`${inputId}-${key}`} type={key==="manufacturedAt"?"date":"text"} value={fields[key]} maxLength={key==="brand"?80:120} onChange={event=>setFields({...fields,[key]:event.target.value})} />}
-      </label>)}
+        {result.suggestions[key].confidence==="MEDIUM"&&<><p>후보: {key==="category"?categories[result.suggestions[key].value as keyof typeof categories]:result.suggestions[key].value}</p><button type="button" disabled={disabled} onClick={()=>setFields(current=>({...current,[key]:result.suggestions[key].value}))}>{labels[key]} 후보 확인 후 사용</button></>}
+        <small>{result.suggestions[key].reason}</small>
+      </div>)}
       <button type="button" disabled={disabled||!file} onClick={()=>{if(file){onApply(fields,file);setMessage("등록폼에 반영 요청했습니다. 입력 내용을 확인한 뒤 물건을 저장해 주세요.");}}}>확인한 정보를 등록폼에 반영</button>
-      <details><summary>읽은 원문 확인</summary><pre>{result.text.slice(0,6000)}</pre></details>
+      <details><summary>인식된 글자 보기</summary><pre>{result.text.slice(0,6000)}</pre></details>
     </div>}
     <small>JPG/PNG/WebP · 최대 10MB. 인식 없이 기존 등록폼을 직접 작성할 수도 있습니다.</small>
   </section>;

@@ -15,3 +15,6 @@ out/
 
 # Generated from pinned OCR packages; no runtime third-party CDN.
 /public/ocr/
+
+# Private user-supplied product labels are local test inputs only.
+/test-labels/
