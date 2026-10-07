@@ -24,7 +24,10 @@ try{
   assert.equal((await request("/api/product-label/analyze",undefined,true)).status,401);
   const config=await request("/api/product-label/analyze");assert.equal(config.status,200);assert.equal(config.data.enabled,true);assert.equal(config.data.dailyLimit,20);console.log("Preview runtime configuration verified; key not printed");
   const invalidForm=new FormData();invalidForm.set("requestId",randomUUID());const noConsent=await request("/api/product-label/analyze",invalidForm);assert.equal(noConsent.status,400);
-  for(const fileName of ["refrigerator-label.jpg","tv-label.jpg"]){
+  if(process.env.LABEL_MODELS_LIST_ONLY==="1"){
+    const models=await request("/api/product-label/analyze?checkModel=gemini-3.8-flash");console.log(JSON.stringify({modelList:models},null,2));
+  }
+  for(const fileName of process.env.LABEL_MODELS_LIST_ONLY==="1"?[]:["refrigerator-label.jpg","tv-label.jpg"]){
     const id=randomUUID(),file=fs.readFileSync(`test-labels/${fileName}`);const form=new FormData();form.set("requestId",id);form.set("consent","label-ai-v1");form.set("image",new Blob([file],{type:"image/jpeg"}),fileName);
     const analysis=await request("/api/product-label/analyze",form);
     results.push({fileName,status:analysis.status,...analysis.data});console.log(JSON.stringify(results.at(-1),null,2));

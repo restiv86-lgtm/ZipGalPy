@@ -14,6 +14,20 @@ export function aiConfiguration(){
   const isolated=!!process.env.LABEL_AI_DB_HOST_HASH&&createHash("sha256").update(hostname).digest("hex")===process.env.LABEL_AI_DB_HOST_HASH;
   return {enabled:preview&&configured&&isolated,provider:"gemini",model:"gemini-2.5-flash",dailyLimit:20};
 }
+export async function checkPreviewGeminiModel(){
+  if(!aiConfiguration().enabled)throw new AttachmentError(503,"설정된 Preview에서만 모델 목록을 확인할 수 있습니다.");
+  let pageToken:string|undefined;
+  for(let page=0;page<10;page++){
+    const url=new URL("https://generativelanguage.googleapis.com/v1beta/models");url.searchParams.set("pageSize","1000");if(pageToken)url.searchParams.set("pageToken",pageToken);
+    const response=await fetch(url,{headers:{"x-goog-api-key":process.env.GEMINI_API_KEY!},cache:"no-store",redirect:"error",signal:AbortSignal.timeout(15_000)});
+    if(!response.ok){await response.body?.cancel();return {httpStatus:response.status,model:"gemini-3.8-flash",listed:false,generateContent:false};}
+    const data=await response.json();const match=data.models?.find((model:{name:string})=>model.name==="models/gemini-3.8-flash");
+    if(match)return {httpStatus:200,model:"gemini-3.8-flash",listed:true,generateContent:match.supportedGenerationMethods?.includes("generateContent")===true};
+    if(!data.nextPageToken)return {httpStatus:200,model:"gemini-3.8-flash",listed:false,generateContent:false};
+    pageToken=data.nextPageToken;
+  }
+  throw new AttachmentError(502,"모델 목록 확인이 완료되지 않았습니다.");
+}
 export async function sanitizeLabelImage(file:File){
   if(file.size===0||file.size>10*1024*1024)throw new AttachmentError(400,"사진은 10MB 이하로 선택해 주세요.");
   const original=Buffer.from(await file.arrayBuffer());const actual=await fileTypeFromBuffer(original);

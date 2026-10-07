@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { AttachmentError, attachmentError, attachmentUser } from "@/lib/attachments/http";
-import { aiConfiguration, analyzeGemini, LabelAiError, recordAiUsage, reserveAiCall, sanitizeLabelImage } from "@/lib/product-label/ai-server";
+import { aiConfiguration, analyzeGemini, checkPreviewGeminiModel, LabelAiError, recordAiUsage, reserveAiCall, sanitizeLabelImage } from "@/lib/product-label/ai-server";
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
 export const maxDuration=40;
-export async function GET(request:Request){try{await attachmentUser(request);return Response.json(aiConfiguration(),{headers:{"Cache-Control":"private, no-store"}});}catch(error){return attachmentError(error);}}
+export async function GET(request:Request){try{await attachmentUser(request);const data=new URL(request.url).searchParams.get("checkModel")==="gemini-3.8-flash"?await checkPreviewGeminiModel():aiConfiguration();return Response.json(data,{headers:{"Cache-Control":"private, no-store"}});}catch(error){if(error instanceof LabelAiError)return Response.json({error:error.message},{status:error.status});return attachmentError(error);}}
 export async function POST(request:Request){
   let reservedId:string|undefined;
   try{
