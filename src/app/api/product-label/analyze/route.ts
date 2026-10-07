@@ -3,7 +3,7 @@ import { AttachmentError, attachmentError, attachmentUser } from "@/lib/attachme
 import { aiConfiguration, analyzeGemini, checkPreviewGeminiModel, diagnoseGemini, LabelAiError, recordAiUsage, reserveAiCall, sanitizeLabelImage } from "@/lib/product-label/ai-server";
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
-export const maxDuration=90;
+export const maxDuration=240;
 export async function GET(request:Request){try{await attachmentUser(request);const data=new URL(request.url).searchParams.get("checkModel")==="gemini-3.8-flash"?await checkPreviewGeminiModel():aiConfiguration();return Response.json(data,{headers:{"Cache-Control":"private, no-store"}});}catch(error){if(error instanceof LabelAiError)return Response.json({error:error.message},{status:error.status});return attachmentError(error);}}
 export async function POST(request:Request){
   let reservedId:string|undefined;
@@ -20,8 +20,8 @@ export async function POST(request:Request){
     const image=await sanitizeLabelImage(file);
     if(diagnostic==="image")return Response.json(await diagnoseGemini(userId,requestId,image),{headers:{"Cache-Control":"private, no-store"}});
     const remaining=await reserveAiCall(requestId,userId);reservedId=requestId;
-    const result=await analyzeGemini(image);await recordAiUsage(requestId,"COMPLETED",result.usage);
-    return Response.json({...result,remaining},{headers:{"Cache-Control":"private, no-store"}});
+    const result=await analyzeGemini(image,userId,requestId);
+    return Response.json({...result,remaining:Math.max(0,remaining-(result.attempts.length-1))},{headers:{"Cache-Control":"private, no-store"}});
   }catch(error){
     if(reservedId)await recordAiUsage(reservedId,"FAILED").catch(()=>undefined);
     if(error instanceof LabelAiError)return Response.json({error:error.message},{status:error.status});
