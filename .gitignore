@@ -12,3 +12,6 @@ out/
 # Official source datasets are local import inputs, never repository assets.
 /data/
 .neon
+
+# Generated from pinned OCR packages; no runtime third-party CDN.
+/public/ocr/
