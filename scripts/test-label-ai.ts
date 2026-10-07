@@ -17,4 +17,8 @@ assert.equal(aiConfiguration().enabled,false,"Production/local must fail closed 
 const source=await sharp({create:{width:64,height:32,channels:3,background:"white"}}).jpeg().withMetadata({orientation:6}).toBuffer();
 const cleaned=await sanitizeLabelImage(new File([source],"label.jpg",{type:"image/jpeg"}));
 const metadata=await sharp(cleaned).metadata();assert.equal(metadata.exif,undefined);assert.equal(metadata.orientation,undefined);assert.equal(metadata.width,32);assert.equal(metadata.height,64);
+assert.equal(metadata.format,"jpeg");
+const large=await sharp({create:{width:2400,height:1800,channels:3,background:"white"}}).png().toBuffer();
+const optimized=await sanitizeLabelImage(new File([large],"large.png",{type:"image/png"}));
+const optimizedMetadata=await sharp(optimized).metadata();assert.equal(optimizedMetadata.width,1600);assert.equal(optimizedMetadata.height,1200);assert.equal(optimizedMetadata.format,"jpeg");
 console.log("PASS: comparison, unknown/invalid fields, no personal response fields, local/Production disabled, EXIF removal and rotation; zero AI calls");

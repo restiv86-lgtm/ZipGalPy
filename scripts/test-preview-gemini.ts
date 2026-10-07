@@ -33,7 +33,7 @@ try{
     const result=await request("/api/product-label/analyze",form);results.push({kind:"text",...result});console.log(JSON.stringify(results.at(-1),null,2));diagnosticTextSuccess=result.status===200&&result.data.httpStatus===200;
   }
   const files=process.env.LABEL_MODELS_LIST_ONLY==="1"?[]:process.env.LABEL_DIAGNOSTIC==="1"?(diagnosticTextSuccess?["refrigerator-label.jpg"]:[]):["refrigerator-label.jpg","tv-label.jpg"];
-  for(const fileName of files){
+  for(const fileName of process.env.LABEL_TEST_TV_ONLY==="1"?["tv-label.jpg"]:files){
     const id=randomUUID(),file=fs.readFileSync(`test-labels/${fileName}`);const form=new FormData();form.set("requestId",id);form.set("consent","label-ai-v1");form.set("image",new Blob([file],{type:"image/jpeg"}),fileName);
     if(process.env.LABEL_DIAGNOSTIC==="1")form.set("diagnostic","image");
     const analysis=await request("/api/product-label/analyze",form);
