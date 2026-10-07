@@ -28,7 +28,7 @@ try{
     const id=randomUUID(),file=fs.readFileSync(`test-labels/${fileName}`);const form=new FormData();form.set("requestId",id);form.set("consent","label-ai-v1");form.set("image",new Blob([file],{type:"image/jpeg"}),fileName);
     const analysis=await request("/api/product-label/analyze",form);
     results.push({fileName,status:analysis.status,...analysis.data});console.log(JSON.stringify(results.at(-1),null,2));
-    if(analysis.status!==200)break; // No automatic retry or extra paid calls after any failure.
+    if(analysis.status!==200)continue; // Each user-approved photo once only; never retry a failed photo.
     assert.equal((await request("/api/product-label/analyze",form)).status,409,"Duplicate request must not call Gemini again");
   }
   fs.writeFileSync(".vercel/preview-gemini-results.json",JSON.stringify(results,null,2));
