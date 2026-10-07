@@ -16,6 +16,8 @@ The Preview-only `label_ai_preview.usage` operational ledger is separate from ap
 
 Token-cost estimates use Gemini 3.8 Flash introductory input $0.75 / million and output $3.75 / million through 2026-12-31, then $1.50 / $7.50, including reported thinking tokens. Estimates are not invoices; failed calls with missing usage have unknown cost. Google paid API may retain data for safety; do not promise zero retention. Reference: https://ai.google.dev/gemini-api/docs/generate-content/latest-model.
 
+Explicit authenticated Preview diagnostics are an exception to the normal no-retry analysis: fixed short text or one sanitized image, up to two retries ONLY for HTTP 503, 1s/2s exponential delays plus 0–499ms jitter. Each upstream attempt reserves a daily-budget slot. No retries for other HTTP codes or timeouts. Only redacted provider error status/message and HTTP history are returned; raw provider responses, keys and extracted content are not logged. Inline image requests must remain below 20MB. `LABEL_DIAGNOSTIC=1` in the test runner sends text first and sends the refrigerator image only after text HTTP 200; it never sends the TV image in this mode.
+
 Sources: https://github.com/naptha/tesseract.js (Apache-2.0), https://github.com/naptha/tesseract.js-core (Apache-2.0), https://github.com/naptha/tessdata (language assets). Package versions are locked in pnpm-lock.yaml. Build scripts do not download models from a runtime CDN.
 
 Release requires Preview browser recognition/review/manual-fallback tests, API validation/storage/ownership tests, mobile inspection, and additive migration verification. A generated label test is not a substitute for accuracy testing on representative real product labels.

@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import sharp from "sharp";
 import { fileTypeFromBuffer } from "file-type";
 import { getPrisma } from "@/lib/prisma";
@@ -71,4 +71,28 @@ export async function analyzeGemini(image:Buffer){
 }
 export async function recordAiUsage(id:string,status:"COMPLETED"|"FAILED",usage?:{inputTokens:number|null;outputTokens:number|null;estimatedUsd:number|null}){
   await getPrisma().$executeRaw`UPDATE label_ai_preview.usage SET status=${status},input_tokens=${usage?.inputTokens??null},output_tokens=${usage?.outputTokens??null},estimated_usd=${usage?.estimatedUsd??null} WHERE request_id=${id}::uuid`;
+}
+
+// Explicit Preview diagnostic only: fixed prompt, 503-only retries, each attempt consumes the daily budget.
+export async function diagnoseGemini(userId:string,requestId:string,image?:Buffer){
+  const config=aiConfiguration();if(!config.enabled)throw new AttachmentError(503,"Preview AI is disabled.");
+  const parts:({text:string}|{inlineData:{mimeType:string;data:string}})[]=[{text:image?"Read the primary product model printed on this refrigerator label. Answer only the visible model, or UNKNOWN.":"OK라고만 답해줘"}];
+  if(image)parts.push({inlineData:{mimeType:"image/png",data:image.toString("base64")}});
+  const body=JSON.stringify({contents:[{role:"user",parts}],generationConfig:{maxOutputTokens:256,thinkingConfig:{thinkingLevel:"low"}}});
+  if(Buffer.byteLength(body)>=20*1024*1024)throw new AttachmentError(413,"Image request exceeds the inline payload limit.");
+  const attempts:{httpStatus:number;errorStatus?:string;message?:string;delayMs:number}[]=[];
+  for(let attempt=0;attempt<3;attempt++){
+    const delayMs=attempt===0?0:Math.floor(1000*2**(attempt-1)+Math.random()*500);
+    if(delayMs)await new Promise(resolve=>setTimeout(resolve,delayMs));
+    const id=attempt===0?requestId:randomUUID();await reserveAiCall(id,userId);
+    let response:Response;
+    try{response=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent`,{method:"POST",redirect:"error",headers:{"Content-Type":"application/json","x-goog-api-key":process.env.GEMINI_API_KEY!},body,signal:AbortSignal.timeout(20_000)});}
+    catch{await recordAiUsage(id,"FAILED");attempts.push({httpStatus:504,errorStatus:"LOCAL_TIMEOUT_OR_NETWORK",message:"No provider HTTP response received.",delayMs});break;}
+    const data=await response.json().catch(()=>({}));
+    const redact=(value:unknown)=>{if(typeof value!=="string")return "";return value.split(process.env.GEMINI_API_KEY!).join("[REDACTED]").replace(/https?:\/\/\S+|AIza[\w-]+|[\w.+-]+@[\w.-]+|(?:key|token|secret)\s*[=:]\s*\S+/gi,"[REDACTED]").slice(0,500);};
+    attempts.push({httpStatus:response.status,delayMs,...(!response.ok?{errorStatus:redact(data.error?.status),message:redact(data.error?.message)}:{})});
+    await recordAiUsage(id,response.ok?"COMPLETED":"FAILED");
+    if(response.status!==503)break;
+  }
+  return {httpStatus:attempts.at(-1)!.httpStatus,attempts,payload:{byteSize:Buffer.byteLength(body),imageBytes:image?.byteLength??0,mimeType:image?"image/png":null}};
 }

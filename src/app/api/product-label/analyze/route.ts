@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { AttachmentError, attachmentError, attachmentUser } from "@/lib/attachments/http";
-import { aiConfiguration, analyzeGemini, checkPreviewGeminiModel, LabelAiError, recordAiUsage, reserveAiCall, sanitizeLabelImage } from "@/lib/product-label/ai-server";
+import { aiConfiguration, analyzeGemini, checkPreviewGeminiModel, diagnoseGemini, LabelAiError, recordAiUsage, reserveAiCall, sanitizeLabelImage } from "@/lib/product-label/ai-server";
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
 export const maxDuration=90;
@@ -14,8 +14,11 @@ export async function POST(request:Request){
     const form=await request.formData();
     if(form.get("consent")!=="label-ai-v1")throw new AttachmentError(400,"외부 AI 전송 안내를 확인하고 동의해 주세요.");
     const requestId=z.string().uuid().parse(form.get("requestId"));
+    const diagnostic=form.get("diagnostic");
+    if(diagnostic==="text")return Response.json(await diagnoseGemini(userId,requestId),{headers:{"Cache-Control":"private, no-store"}});
     const file=form.get("image");if(!(file instanceof File))throw new AttachmentError(400,"사진을 선택해 주세요.");
     const image=await sanitizeLabelImage(file);
+    if(diagnostic==="image")return Response.json(await diagnoseGemini(userId,requestId,image),{headers:{"Cache-Control":"private, no-store"}});
     const remaining=await reserveAiCall(requestId,userId);reservedId=requestId;
     const result=await analyzeGemini(image);await recordAiUsage(requestId,"COMPLETED",result.usage);
     return Response.json({...result,remaining},{headers:{"Cache-Control":"private, no-store"}});
