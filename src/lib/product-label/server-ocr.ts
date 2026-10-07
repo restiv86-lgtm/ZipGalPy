@@ -7,7 +7,10 @@ import {enhanceModelPixels} from "./model-preprocess";
 
 export async function serverLabelOcr(image:Buffer,mode:"fast"|"full",signal:AbortSignal,diagnostic?:(readings:ModelReading[])=>void):Promise<LabelRecognition>{
   const meta=await sharp(image,{limitInputPixels:40_000_000}).metadata(),width=meta.width!,height=meta.height!;
-  const worker=await createWorker(["kor","eng"],1,{workerPath:require.resolve("tesseract.js/src/worker-script/node/index.js"),langPath:path.join(process.cwd(),"public/ocr/lang"),cacheMethod:"none",errorHandler:()=>undefined});
+  // Turbopack can replace require.resolve with a numeric module id; Worker needs a real path.
+  const tracedWorker=require.resolve("tesseract.js/src/worker-script/node/index.js");
+  const workerPath=typeof tracedWorker==="string"?tracedWorker:path.join(process.cwd(),"node_modules/tesseract.js/src/worker-script/node/index.js");
+  const worker=await createWorker(["kor","eng"],1,{workerPath,langPath:path.join(process.cwd(),"public/ocr/lang"),cacheMethod:"none",errorHandler:()=>undefined});
   const abort=()=>{void worker.terminate().catch(()=>undefined);};signal.addEventListener("abort",abort,{once:true});
   function check(){if(signal.aborted)throw new Error("OCR_TIMEOUT");}
   function recognize(input:Parameters<typeof worker.recognize>[0],blocks=false):ReturnType<typeof worker.recognize>{
