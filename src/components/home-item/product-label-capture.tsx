@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { type LabelFields, type LabelRecognition } from "@/lib/product-label/extract";
 import type { LabelProposal } from "@/lib/product-label/autofill";
+import {requestServerOcr,type OcrCache} from "@/lib/product-label/server-ocr-client";
 import styles from "./product-label.module.css";
 import { compareLabelResults, labelKeys, shouldOfferAi, type AiLabelResponse } from "@/lib/product-label/ai";
 
@@ -12,6 +13,10 @@ export function ProductLabelCapture({onAnalyzed,onDiscard,disabled=false}:{onAna
   const inputId=useId();
   const [file,setFile]=useState<File|null>(null),[busy,setBusy]=useState(false),[progress,setProgress]=useState(0);
   const [message,setMessage]=useState(""),[result,setResult]=useState<LabelRecognition|null>(null);
+  const [serverEnabled,setServerEnabled]=useState<boolean|null>(null);
+  const [fastResult,setFastResult]=useState(false);
+  const cache=useRef<OcrCache>(new Map());
+  useEffect(()=>{const abort=new AbortController();fetch("/api/product-label/ocr",{signal:abort.signal,cache:"no-store"}).then(response=>response.ok?response.json():null).then(config=>setServerEnabled(config?.enabled===true)).catch(()=>{if(!abort.signal.aborted)setServerEnabled(false);});return()=>abort.abort();},[]);
   const controller=useRef<AbortController|null>(null),generation=useRef(0);
   const [aiEnabled,setAiEnabled]=useState(false),[showConsent,setShowConsent]=useState(false),[consent,setConsent]=useState(false),[aiBusy,setAiBusy]=useState(false),[aiResult,setAiResult]=useState<AiLabelResponse|null>(null);
   const aiController=useRef<AbortController|null>(null),aiLock=useRef(false);
@@ -44,32 +49,42 @@ export function ProductLabelCapture({onAnalyzed,onDiscard,disabled=false}:{onAna
   }
   useEffect(()=>()=>{generation.current++;controller.current?.abort();},[]);
   function cancel(){generation.current++;controller.current?.abort();resetAi();setBusy(false);setResult(null);onDiscard();setMessage("분석 결과를 취소했습니다. 기존 입력과 직접 수정한 값은 유지합니다.");}
-  async function recognize() {
+  async function recognize(mode:"fast"|"full"="fast") {
     if(!file)return;
+    const started=performance.now();
     const active=++generation.current;
     controller.current?.abort();const abort=new AbortController();controller.current=abort;
-    resetAi();setBusy(true);setMessage("인식 엔진 준비 중입니다. 첫 실행은 시간이 걸릴 수 있습니다.");setResult(null);setProgress(0);
-    const timeout=setTimeout(()=>{if(generation.current===active){cancel();setMessage("인식 시간이 길어 중단했습니다. 사진을 다시 찍거나 직접 입력해 주세요.");}},90_000);
+    resetAi();setBusy(true);setMessage(serverEnabled?"사진을 줄여 제품 정보를 분석하고 있습니다…":"인식 엔진 준비 중입니다. 첫 실행은 시간이 걸릴 수 있습니다.");if(mode==="fast")setResult(null);setProgress(0);
+    const slow=setTimeout(()=>{if(generation.current===active)setMessage("분석 중입니다. 아래 입력칸을 직접 작성하거나 분석을 취소할 수 있습니다.");},10_000);
+    const timeout=setTimeout(()=>{if(generation.current===active){generation.current++;abort.abort();setBusy(false);setMessage("분석 시간이 초과되었습니다. 아래 입력칸에서 수동 입력으로 바로 계속하세요.");}},serverEnabled?50_000:90_000);
     try {
+      if(serverEnabled){
+        const response=await requestServerOcr(file,mode,abort.signal,cache.current);
+        if(generation.current!==active)return;
+        setResult(response.result);onAnalyzed(response.result.suggestions);setFastResult(mode==="fast");
+        setMessage(`${response.cached?"같은 사진의 결과 재사용 · ":`서버 분석 ${(response.durationMs/1000).toFixed(1)}초 · `}전체 ${((performance.now()-started)/1000).toFixed(1)}초 · ${mode==="fast"?"제조사·모델명·카테고리를 먼저 확인하세요.":"추가 정보를 확인하세요."} 기존 입력은 유지하며 자동 저장하지 않습니다.`);
+        return;
+      }
       const {browserLabelOcr}=await import("@/lib/product-label/browser-ocr");
       const extracted=await browserLabelOcr.recognize(file,abort.signal,value=>{if(generation.current===active){setProgress(value);setMessage("제품 라벨을 읽고 있습니다.");}});
       if(generation.current!==active)return;
       setResult(extracted);onAnalyzed(extracted.suggestions);
       setMessage(Object.values(extracted.suggestions).some(suggestion=>suggestion.value)?"HIGH/MEDIUM은 빈 입력칸에만 반영했습니다. LOW는 후보로만 표시합니다. 등록 전 확인하고 수정해 주세요.":"확실히 읽은 정보가 없습니다. 사진을 다시 찍거나 직접 입력해 주세요.");
     } catch(error) {if(generation.current===active)setMessage(error instanceof Error?error.message:"인식하지 못했습니다. 직접 입력해 주세요.");}
-    finally {clearTimeout(timeout);if(generation.current===active)setBusy(false);}
+    finally {clearTimeout(timeout);clearTimeout(slow);if(generation.current===active)setBusy(false);}
   }
   return <section className={styles.panel} aria-labelledby={`${inputId}-title`} aria-busy={busy||aiBusy}>
     <h2 id={`${inputId}-title`}>제품 라벨 사진으로 입력하기</h2>
-    <p>명판을 밝고 정면으로 촬영해 주세요. HIGH/MEDIUM은 빈 입력칸만 채우며 기존 입력은 바꾸지 않습니다. LOW는 후보로만 표시합니다. 1차 OCR은 기기 안에서 처리하며 AI는 직접 선택하고 동의한 경우에만 사진을 외부로 전송합니다. 분석만으로 정보나 사진이 저장되지 않습니다.</p>
+    <p>명판을 밝고 정면으로 촬영해 주세요. HIGH/MEDIUM은 빈 입력칸만 채우며 기존 입력은 바꾸지 않습니다. LOW는 후보로만 표시합니다. {serverEnabled?"사진을 최대 1600px로 줄이고 위치정보를 제거해 집갈피 서버에서 일시 분석합니다. OCR 사진은 DB·Blob에 저장하지 않습니다.":"1차 OCR은 기기 안에서 처리합니다."} AI는 직접 선택하고 동의한 경우에만 사진을 외부 AI에 전송합니다. 분석만으로 정보가 저장되지 않습니다.</p>
     <label htmlFor={inputId}>저장된 라벨 사진 선택</label>
     <input id={inputId} type="file" accept="image/jpeg,image/png,image/webp" disabled={busy||aiBusy||disabled}
       onChange={event=>{generation.current++;resetAi();onDiscard();setFile(event.target.files?.[0]??null);setResult(null);setMessage("");}} />
     <label htmlFor={`${inputId}-camera`}>카메라로 촬영하기 · 모바일</label>
     <input id={`${inputId}-camera`} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" disabled={busy||aiBusy||disabled}
       onChange={event=>{generation.current++;resetAi();onDiscard();setFile(event.target.files?.[0]??null);setResult(null);setMessage("");}} />
-    <div className={styles.actions}><button type="button" disabled={!file||busy||aiBusy||disabled} onClick={recognize}>라벨 인식하기</button>{busy&&<button type="button" onClick={cancel}>인식 취소</button>}</div>
-    {busy&&<progress value={progress} max={100} aria-label="라벨 인식 진행률"/>}
+    <div className={styles.actions}><button type="button" disabled={!file||busy||aiBusy||disabled||serverEnabled===null} onClick={()=>recognize()}>빠르게 라벨 분석</button>{busy&&<button type="button" onClick={cancel}>분석 취소 · 직접 입력</button>}</div>
+    {busy&&(serverEnabled?<progress aria-label="제품 정보를 분석하고 있습니다"/>:<progress value={progress} max={100} aria-label="라벨 인식 진행률"/>)}
+    {serverEnabled&&fastResult&&result&&<div className={styles.actions}><button type="button" disabled={busy||aiBusy||disabled} onClick={()=>recognize("full")}>제조일자·시리얼 등 추가 정보 분석</button></div>}
     <p role="status" aria-live="polite">{message}</p>
     {result&&aiEnabled&&shouldOfferAi(result)&&!aiResult&&<div className={styles.actions}><button type="button" disabled={busy||aiBusy||disabled} onClick={()=>{setShowConsent(true);setConsent(false);}}>{aiTimedOut?"다시 분석":"AI로 더 정확하게 분석"}</button></div>}
     {showConsent&&<section aria-label="외부 AI 전송 동의"><h3>사진 외부 전송 안내</h3><p>선택한 사진이 Google Gemini 유료 API로 전송됩니다. 시리얼번호나 사진에 보이는 개인정보가 포함될 수 있습니다. 불필요한 주소·전화번호는 가리거나 라벨만 촬영해 주세요. EXIF/GPS는 제거하며 계정 이메일·Home 주소·비용·계약 데이터를 추가로 보내지 않습니다. 외부 서비스는 안전성 점검 등을 위해 제한적으로 보관할 수 있습니다. 결과는 제안이며 자동 저장되지 않습니다.</p><label style={{display:"flex",alignItems:"center",gap:8}}><input type="checkbox" checked={consent} disabled={aiBusy} onChange={event=>setConsent(event.target.checked)} style={{width:20,minHeight:20,flex:"0 0 20px"}}/>사진을 Gemini로 전송하는 것에 동의합니다.</label><p>Preview 전체 하루 20회 · 한국시간 기준 · 실패 요청도 한도에 포함 · 503 오류에만 최대 2회 재시도 · 재시도도 한도에 포함</p><div className={styles.actions}><button type="button" disabled={!consent||aiBusy||disabled} onClick={analyzeAi}>{aiBusy?"AI 분석 중…":"동의하고 AI 분석 1회"}</button><button type="button" disabled={aiBusy} onClick={()=>setShowConsent(false)}>취소 · 직접 입력</button></div></section>}

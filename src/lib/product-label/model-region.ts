@@ -27,7 +27,7 @@ export function modelSearchBands(width:number,height:number){
 
 export type ModelReading={text:string;confidence:number};
 export function modelCropEvidence(readings:ModelReading[]) {
-  const valid=readings.map(reading=>({value:reading.text.trim(),score:reading.confidence})).filter(reading=>Number.isFinite(reading.score)&&reading.score>=40&&/^(?=.*[A-Z])(?=.*\d)[A-Z0-9][A-Z0-9._/-]{2,59}$/i.test(reading.value));
+  const valid=readings.map(reading=>({value:reading.text.trim().replace(/^[:：]\s*/,""),score:reading.confidence})).filter(reading=>Number.isFinite(reading.score)&&reading.score>=40&&/^(?=.*[A-Z])(?=.*\d)[A-Z0-9][A-Z0-9._/-]{2,59}$/i.test(reading.value));
   const values=new Set(valid.map(reading=>reading.value));
   if(values.size!==1)return null;
   const candidate=valid[0];
