@@ -1,88 +1,69 @@
-import type { Worker } from "tesseract.js";
-import { extractProductLabel, type LabelRecognition } from "./extract";
-import { modelRegions, modelSearchBands, modelCropEvidence, type ModelReading } from "./model-region";
-import { enhanceModelPixels } from "./model-preprocess";
+import type {Worker} from 'tesseract.js';
+import {extractProductLabel,type LabelRecognition,type LabelLine} from './extract';
+import {modelRegions,modelCropEvidence,type ModelReading} from './model-region';
+import {BrowserResultCache} from './browser-result-cache';
 
-// Provider boundary: a future optional AI helper can be added without changing item CRUD.
-export interface LabelRecognitionProvider { recognize(file: File, signal: AbortSignal, progress: (value:number)=>void): Promise<LabelRecognition> }
-export const browserLabelOcr: LabelRecognitionProvider = {
-  async recognize(file,signal,progress) {
-    if(file.size>10*1024*1024||file.size===0||!/^image\/(jpeg|png|webp)$/.test(file.type)) throw new Error("JPG/PNG/WebP 사진을 10MB 이하로 선택해 주세요.");
-    const header=new Uint8Array(await file.slice(0,16).arrayBuffer());
-    const actual=header[0]===0xff&&header[1]===0xd8?"image/jpeg":header[0]===0x89&&String.fromCharCode(...header.slice(1,4))==="PNG"?"image/png":String.fromCharCode(...header.slice(0,4))==="RIFF"&&String.fromCharCode(...header.slice(8,12))==="WEBP"?"image/webp":"";
-    if(actual!==file.type) throw new Error("사진 형식과 실제 내용이 다릅니다.");
+export interface LabelRecognitionProvider {recognize(file:File,signal:AbortSignal,progress:(value:number)=>void):Promise<LabelRecognition>}
+const cache=new BrowserResultCache();
+export const browserLabelOcr:LabelRecognitionProvider={
+  async recognize(file,signal,progress){
+    const check=()=>{if(signal.aborted)throw new DOMException('인식을 취소했습니다.','AbortError');};
+    check();
+    if(!file.size||file.size>10*1024*1024||!/^image\/(jpeg|png|webp)$/.test(file.type))throw new Error('JPG/PNG/WebP 사진을 10MB 이하로 선택해 주세요.');
+    const bytes=await file.arrayBuffer(),header=new Uint8Array(bytes,0,Math.min(16,bytes.byteLength));
+    const actual=header[0]===0xff&&header[1]===0xd8?'image/jpeg':header[0]===0x89&&String.fromCharCode(...header.slice(1,4))==='PNG'?'image/png':String.fromCharCode(...header.slice(0,4))==='RIFF'&&String.fromCharCode(...header.slice(8,12))==='WEBP'?'image/webp':'';
+    if(actual!==file.type)throw new Error('사진 형식과 파일 내용이 다릅니다.');
+    const digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))).map(value=>value.toString(16).padStart(2,'0')).join('');
+    check();const cached=cache.read(digest);if(cached){progress(100);return cached;}
     const image=await createImageBitmap(file);
-    if(image.width*image.height>40_000_000) {image.close();throw new Error("사진이 너무 큽니다. 라벨 부분을 잘라 다시 시도해 주세요.");}
-    const canvas=document.createElement("canvas");
-    const scale=Math.min(1,2000/Math.max(image.width,image.height));
+    if(image.width*image.height>40_000_000){image.close();throw new Error('사진이 너무 큽니다. 라벨 부분을 잘라 다시 시도해 주세요.');}
+    const canvas=document.createElement('canvas'),scale=Math.min(1,2000/Math.max(image.width,image.height));
     canvas.width=Math.round(image.width*scale);canvas.height=Math.round(image.height*scale);
-    const context=canvas.getContext("2d"); if(!context){image.close();throw new Error("이 브라우저에서 사진을 읽을 수 없습니다.");}
-    context.fillStyle="white";context.fillRect(0,0,canvas.width,canvas.height);context.drawImage(image,0,0,canvas.width,canvas.height);image.close();
-    const library=await import("tesseract.js");
-    let worker: Worker | undefined;
-    let cancelled=signal.aborted;
-    const abort=()=>{cancelled=true;if(worker)void worker.terminate().catch(()=>undefined);};
-    signal.addEventListener("abort",abort,{once:true});
-    try {
-      if(cancelled)throw new Error("인식을 취소했습니다.");
-      worker=await library.createWorker(["kor","eng"],1,{
-        workerPath:"/ocr/worker.min.js",corePath:"/ocr/core",langPath:"/ocr/lang",workerBlobURL:false,
-        cacheMethod:"write",logger:message=>{if(!cancelled&&message.status==="recognizing text")progress(Math.round(message.progress*100));},
-      });
-      if(cancelled)throw new Error("인식을 취소했습니다.");
-      await worker.setParameters({tessedit_pageseg_mode:library.PSM.AUTO,preserve_interword_spaces:"1"});
-      const {data}=await worker.recognize(canvas,{}, {text:true,blocks:true});
-      if(cancelled)throw new Error("인식을 취소했습니다.");
-      await worker.setParameters({tessedit_pageseg_mode:library.PSM.SPARSE_TEXT});
-      const second=await worker.recognize(canvas,{}, {text:true,blocks:true});
-      if(cancelled)throw new Error("인식을 취소했습니다.");
-      const lines=(data.blocks??[]).flatMap(block=>block.paragraphs.flatMap(paragraph=>paragraph.lines.map(line=>({text:line.text,confidence:Math.min(line.confidence,...line.words.map(word=>word.confidence)),bbox:line.bbox,words:line.words}))));
-      const readings:ModelReading[]=[];
-      let regions=modelRegions(lines,canvas.width,canvas.height);
+    const context=canvas.getContext('2d');if(!context){image.close();throw new Error('이 브라우저는 사진을 읽을 수 없습니다.');}
+    context.fillStyle='white';context.fillRect(0,0,canvas.width,canvas.height);context.drawImage(image,0,0,canvas.width,canvas.height);image.close();
+    let worker:Worker|undefined;
+    const abort=()=>{if(worker)void worker.terminate().catch(()=>undefined);};
+    signal.addEventListener('abort',abort,{once:true});
+    try{
+      const library=await import('tesseract.js');
+      check();
+      worker=await library.createWorker(['kor','eng'],1,{workerPath:'/ocr/worker.min.js',corePath:'/ocr/core',langPath:'/ocr/lang',workerBlobURL:false,cacheMethod:'write',logger:message=>{if(!signal.aborted&&message.status==='recognizing text')progress(Math.round(message.progress*100));}});
+      check();
+      // One layout pass locates explicit model labels before detailed crops.
+      await worker.setParameters({tessedit_pageseg_mode:library.PSM.AUTO,preserve_interword_spaces:'1'});
+      const {data}=await worker.recognize(canvas,{}, {text:true,blocks:true});check();
+      const lines:LabelLine[]=(data.blocks??[]).flatMap(b=>b.paragraphs.flatMap(p=>p.lines.map(line=>({...line,confidence:Math.min(line.confidence,...line.words.map(word=>word.confidence))}))));
+      let regions=modelRegions(lines,canvas.width,canvas.height),corroboration:string|undefined;
+      // Replace up to sixteen overlapping scans with one bounded sparse pass.
+      // Upscale small labels so the model locator sees individual characters.
       if(!regions.length){
-        const sparseLines=(second.data.blocks??[]).flatMap(block=>block.paragraphs.flatMap(p=>p.lines));
-        regions=modelRegions(sparseLines,canvas.width,canvas.height);
+        const sparse=document.createElement('canvas'),zoom=Math.min(2,2400/Math.max(canvas.width,canvas.height));
+        sparse.width=Math.round(canvas.width*zoom);sparse.height=Math.round(canvas.height*zoom);
+        try{
+          const ctx=sparse.getContext('2d');if(ctx){ctx.drawImage(canvas,0,0,sparse.width,sparse.height);await worker.setParameters({tessedit_pageseg_mode:library.PSM.SPARSE_TEXT});
+            const second=await worker.recognize(sparse,{}, {text:true,blocks:true});check();corroboration=second.data.text;
+            const found=modelRegions((second.data.blocks??[]).flatMap(b=>b.paragraphs.flatMap(p=>p.lines)),sparse.width,sparse.height);
+            regions=found.map(box=>({left:Math.floor(box.left/zoom),top:Math.floor(box.top/zoom),width:Math.min(canvas.width-Math.floor(box.left/zoom),Math.ceil(box.width/zoom)),height:Math.min(canvas.height-Math.floor(box.top/zoom),Math.ceil(box.height/zoom))}));
+          }
+        }finally{sparse.width=0;sparse.height=0;}
       }
-      if(!regions.length){
-        await worker.setParameters({tessedit_pageseg_mode:library.PSM.SINGLE_BLOCK});
-        for(const band of modelSearchBands(canvas.width,canvas.height)){
-          if(cancelled)throw new Error("인식을 취소했습니다.");
-          const strip=document.createElement("canvas");strip.width=band.width*4;strip.height=band.height*4;
-          try{
-            const ctx=strip.getContext("2d");if(!ctx)continue;
-            ctx.drawImage(canvas,band.left,band.top,band.width,band.height,0,0,strip.width,strip.height);
-            const scan=await worker.recognize(strip,{}, {text:true,blocks:true});
-            const rows=(scan.data.blocks??[]).flatMap(block=>block.paragraphs.flatMap(p=>p.lines));
-            const found=modelRegions(rows,strip.width,strip.height);
-            if(found.length){regions=found.map(box=>({left:Math.floor(band.left+box.left/4),top:Math.floor(band.top+box.top/4),width:Math.ceil(box.width/4)+4,height:Math.ceil(box.height/4)+4}));break;}
-          }finally{strip.width=0;strip.height=0;}
+      if(regions.length)await worker.setParameters({tessedit_pageseg_mode:library.PSM.SINGLE_WORD});
+      async function readRegion(region:ReturnType<typeof modelRegions>[number]):Promise<ModelReading[]>{
+        const readings:ModelReading[]=[];
+        for(const zoom of [4,6]){
+          check();const crop=document.createElement('canvas');crop.width=region.width*zoom;crop.height=region.height*zoom;
+          try{const ctx=crop.getContext('2d');if(!ctx)continue;ctx.drawImage(canvas,region.left,region.top,region.width,region.height,0,0,crop.width,crop.height);
+            const reading=await worker!.recognize(crop,{}, {text:true});check();readings.push({text:reading.data.text,confidence:reading.data.confidence});
+          }finally{crop.width=0;crop.height=0;}
         }
+        return readings;
       }
-      await worker.setParameters({tessedit_pageseg_mode:library.PSM.SINGLE_WORD});
-      for(const region of regions){
-        if(cancelled)throw new Error("인식을 취소했습니다.");
-        const crop=document.createElement("canvas");crop.width=region.width*6;crop.height=region.height*6;
-        try{
-          const ctx=crop.getContext("2d");if(!ctx)continue;
-          ctx.drawImage(canvas,region.left,region.top,region.width,region.height,0,0,crop.width,crop.height);
-          const original=await worker.recognize(crop,{}, {text:true});readings.push({text:original.data.text,confidence:original.data.confidence});
-        }finally{crop.width=0;crop.height=0;}
-      }
-      await worker.reinitialize("eng");
-      await worker.setParameters({tessedit_pageseg_mode:library.PSM.SINGLE_LINE});
-      for(const region of regions)for(const zoom of [4,6]){
-        if(cancelled)throw new Error("인식을 취소했습니다.");
-        const crop=document.createElement("canvas");crop.width=region.width*zoom;crop.height=region.height*zoom;
-        try{
-          const cropContext=crop.getContext("2d");if(!cropContext)continue;
-          cropContext.drawImage(canvas,region.left,region.top,region.width,region.height,0,0,crop.width,crop.height);
-          const pixels=cropContext.getImageData(0,0,crop.width,crop.height);
-          enhanceModelPixels(pixels.data,crop.width,crop.height);cropContext.putImageData(pixels,0,0);
-          const result=await worker.recognize(crop,{}, {text:true});readings.push({text:result.data.text,confidence:result.data.confidence});
-        }finally{crop.width=0;crop.height=0;}
-      }
-      if(cancelled)throw new Error("인식을 취소했습니다.");
-      return extractProductLabel(data.text,data.confidence,lines,second.data.text,modelCropEvidence(readings));
-    } finally {signal.removeEventListener("abort",abort);if(worker)await worker.terminate().catch(()=>undefined);canvas.width=0;canvas.height=0;}
+      const readings:ModelReading[]=[];for(const region of regions)readings.push(...await readRegion(region));
+      const evidence=modelCropEvidence(readings);
+      // Crop-only evidence never becomes HIGH without independent labelled OCR.
+      const result=extractProductLabel(data.text,data.confidence,lines,corroboration,evidence?{...evidence,score:Math.min(79,evidence.score)}:null);
+      if(evidence&&result.suggestions.modelName.value===evidence.value)result.suggestions.modelName.reason='명시적 모델 라벨 오른쪽 확대 인식 · 혼동 문자 치환 없음 · 사용자 확인 필요';
+      check();cache.write(digest,result);return result;
+    }finally{signal.removeEventListener('abort',abort);if(worker)await worker.terminate().catch(()=>undefined);canvas.width=0;canvas.height=0;}
   },
 };

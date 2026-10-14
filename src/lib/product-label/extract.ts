@@ -13,7 +13,14 @@ const labels:Record<Exclude<FieldKey,"category">,RegExp>={
   manufacturedAt:/^(?:제조\s*(?:년월|일자|일)|date\s+of\s+manufacture|manufactur(?:ed|ing)\s*(?:date)?|mfg(?:\s*date)?)(?=\s|[:：]|$)\s*[:：]?\s*/i,
 };
 const brands=[{name:"삼성전자",pattern:/(?:삼성(?:전자)?|\bSAMSUNG\b)/i},{name:"LG전자",pattern:/(?:엘지전자|LG\s*전자|\bLG(?:\s+ELECTRONICS)?\b)/i},{name:"위니아",pattern:/(?:위니아|\bWINIA\b)/i},{name:"캐리어",pattern:/(?:캐리어|\bCARRIER\b)/i},{name:"쿠쿠",pattern:/(?:쿠쿠|\bCUCKOO\b)/i},{name:"쿠첸",pattern:/(?:쿠첸|\bCUCHEN\b)/i}];
+// A regulatory or radio-module identifier is not evidence of the primary
+// product model. Match context and structured prefixes, never a fixture value.
+export function isRegulatoryModelLine(text:string):boolean {
+  return /(?:^|\s)R\s*[-–—~]\s*[RC]\s*[-–—~]\s*[A-Z0-9]+\s*[-–—~]/i.test(text)
+    || /(?:기자재|무선\s*모듈|인증\s*(?:번호|모델)|\b(?:regulatory|certification|radio\s+module)\b|\bFCC\s*ID\s*[:：])/i.test(text);
+}
 function validValue(key:FieldKey,raw:string):string {
+  if(key==="modelName"&&isRegulatoryModelLine(raw))return "";
   const value=raw.trim().replace(/[;，,]+$/g,"");
   if(key==="serialNumber"&&/^\d{6,60}$/.test(value))return value;
   if(key==="modelName"||key==="serialNumber")return /^(?=.*[A-Z])(?=.*\d)[A-Z0-9][A-Z0-9._/-]{2,59}$/i.test(value)?value:"";
@@ -40,6 +47,7 @@ export function extractProductLabel(text:string,confidence:number,layout:LabelLi
   for(const key of Object.keys(labels) as Exclude<FieldKey,"category">[]){
     const pattern=labels[key];
     lines.forEach((line,index)=>{
+      if(key==="modelName"&&isRegulatoryModelLine(line.text))return;
       const clean=line.text.trim().replace(/^[|│]+\s*/,""),match=clean.match(pattern);if(!match)return;
       const tail=clean.slice(match[0].length).trim();
       let value=validValue(key,tail),score=Math.min(98,line.confidence),reason="명시적 라벨과 같은 행의 값";

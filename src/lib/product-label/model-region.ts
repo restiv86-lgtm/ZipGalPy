@@ -1,8 +1,9 @@
-import type { LabelLine } from "./extract";
+import {isRegulatoryModelLine,type LabelLine} from "./extract";
 
 // Coordinates select evidence, never substitute look-alike characters (S/5, O/0).
 export function modelRegions(lines:LabelLine[],width:number,height:number) {
   return lines.flatMap(line=>{
+    if(isRegulatoryModelLine(line.text))return [];
     const words=line.words??[];
     let index=-1,end=-1;
     for(let i=0;i<words.length&&index<0;i++)for(const count of [3,2,1]){
@@ -27,7 +28,7 @@ export function modelSearchBands(width:number,height:number){
 
 export type ModelReading={text:string;confidence:number};
 export function modelCropEvidence(readings:ModelReading[]) {
-  const valid=readings.map(reading=>({value:reading.text.trim(),score:reading.confidence})).filter(reading=>Number.isFinite(reading.score)&&reading.score>=40&&/^(?=.*[A-Z])(?=.*\d)[A-Z0-9][A-Z0-9._/-]{2,59}$/i.test(reading.value));
+  const valid=readings.map(reading=>({value:reading.text.trim(),score:reading.confidence})).filter(reading=>Number.isFinite(reading.score)&&reading.score>=40&&!isRegulatoryModelLine(reading.value)&&/^(?=.*[A-Z])(?=.*\d)[A-Z0-9][A-Z0-9._/-]{2,59}$/i.test(reading.value));
   const values=new Set(valid.map(reading=>reading.value));
   if(values.size!==1)return null;
   const candidate=valid[0];
