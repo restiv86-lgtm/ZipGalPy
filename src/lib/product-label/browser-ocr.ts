@@ -1,6 +1,6 @@
 import type {Worker} from 'tesseract.js';
 import {extractProductLabel,type LabelRecognition,type LabelLine} from './extract';
-import {modelRegions,modelCropEvidence,type ModelReading} from './model-region';
+import {modelRegions,compareModelReadings,type ModelReading} from './model-region';
 import {BrowserResultCache} from './browser-result-cache';
 
 export interface LabelRecognitionProvider {recognize(file:File,signal:AbortSignal,progress:(value:number)=>void):Promise<LabelRecognition>}
@@ -47,22 +47,27 @@ export const browserLabelOcr:LabelRecognitionProvider={
           }
         }finally{sparse.width=0;sparse.height=0;}
       }
-      if(regions.length)await worker.setParameters({tessedit_pageseg_mode:library.PSM.SINGLE_WORD});
-      async function readRegion(region:ReturnType<typeof modelRegions>[number]):Promise<ModelReading[]>{
-        const readings:ModelReading[]=[];
-        for(const zoom of [4,6]){
+      async function readRegion(region:ReturnType<typeof modelRegions>[number],zoom:number,mode:string):Promise<ModelReading>{
           check();const crop=document.createElement('canvas');crop.width=region.width*zoom;crop.height=region.height*zoom;
-          try{const ctx=crop.getContext('2d');if(!ctx)continue;ctx.drawImage(canvas,region.left,region.top,region.width,region.height,0,0,crop.width,crop.height);
-            const reading=await worker!.recognize(crop,{}, {text:true});check();readings.push({text:reading.data.text,confidence:reading.data.confidence});
+          try{const ctx=crop.getContext('2d');if(!ctx)return {text:'',confidence:0,mode};ctx.drawImage(canvas,region.left,region.top,region.width,region.height,0,0,crop.width,crop.height);
+            const reading=await worker!.recognize(crop,{}, {text:true});check();return {text:reading.data.text,confidence:reading.data.confidence,mode};
           }finally{crop.width=0;crop.height=0;}
-        }
-        return readings;
       }
-      const readings:ModelReading[]=[];for(const region of regions)readings.push(...await readRegion(region));
-      const evidence=modelCropEvidence(readings);
-      // Crop-only evidence never becomes HIGH without independent labelled OCR.
-      const result=extractProductLabel(data.text,data.confidence,lines,corroboration,evidence?{...evidence,score:Math.min(79,evidence.score)}:null);
-      if(evidence&&result.suggestions.modelName.value===evidence.value)result.suggestions.modelName.reason='명시적 모델 라벨 오른쪽 확대 인식 · 혼동 문자 치환 없음 · 사용자 확인 필요';
+      // At most two labelled regions and three crop modes per region. One
+      // language switch compares Latin identifiers without repeated full scans.
+      const readings:ModelReading[]=[];
+      if(regions.length){
+        await worker.setParameters({tessedit_pageseg_mode:library.PSM.SINGLE_WORD});
+        for(const region of regions)readings.push(await readRegion(region,4,'mixed-word'));
+        await worker.reinitialize('eng',1);check();
+        await worker.setParameters({tessedit_pageseg_mode:library.PSM.SINGLE_LINE});
+        for(const region of regions)readings.push(await readRegion(region,4,'latin-line'));
+        await worker.setParameters({tessedit_pageseg_mode:library.PSM.SINGLE_WORD});
+        for(const region of regions)readings.push(await readRegion(region,6,'latin-word'));
+      }
+      const result=extractProductLabel(data.text,data.confidence,lines,corroboration);
+      result.suggestions.modelName=compareModelReadings(result.suggestions.modelName,readings);
+      result.fields.modelName=result.suggestions.modelName.confidence==='HIGH'?result.suggestions.modelName.value:'';
       check();cache.write(digest,result);return result;
     }finally{signal.removeEventListener('abort',abort);if(worker)await worker.terminate().catch(()=>undefined);canvas.width=0;canvas.height=0;}
   },

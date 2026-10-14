@@ -1,7 +1,7 @@
 export type LabelFields = { brand:string; name:string; modelName:string; manufacturedAt:string; serialNumber:string; category:string };
 export type FieldKey = keyof LabelFields;
 export type LabelLine = { text:string; confidence:number; bbox?:{x0:number;y0:number;x1:number;y1:number}; words?:{text:string;bbox:{x0:number;y0:number;x1:number;y1:number}}[] };
-export type FieldSuggestion = { value:string; confidence:"HIGH"|"MEDIUM"|"LOW"; score:number; reason:string };
+export type FieldSuggestion = { value:string; confidence:"HIGH"|"MEDIUM"|"LOW"; score:number; reason:string; candidates?:string[] };
 export type LabelRecognition = { fields:LabelFields; suggestions:Record<FieldKey,FieldSuggestion>; confidence:number; text:string };
 export const emptyLabelFields=():LabelFields=>({brand:"",name:"",modelName:"",manufacturedAt:"",serialNumber:"",category:""});
 const keys:FieldKey[]=["brand","name","modelName","manufacturedAt","serialNumber","category"];
@@ -19,11 +19,20 @@ export function isRegulatoryModelLine(text:string):boolean {
   return /(?:^|\s)R\s*[-–—~]\s*[RC]\s*[-–—~]\s*[A-Z0-9]+\s*[-–—~]/i.test(text)
     || /(?:기자재|무선\s*모듈|인증\s*(?:번호|모델)|\b(?:regulatory|certification|radio\s+module)\b|\bFCC\s*ID\s*[:：])/i.test(text);
 }
+// A second labelled column ends the model value; never repair OCR glyphs.
+export function modelValueText(raw:string):string {
+  return raw.split(/\s+(?=(?:용량|정격|소비전력|제조(?:사|일|년)|일련번호|시리얼|capacity|rated|voltage|power|serial|s\/?n|manufacturer|mfg)\s*[:：])/i)[0].trim();
+}
+export function validModelValue(raw:string):string {
+  const value=raw.trim().replace(/^[：:|]+\s*/,"").replace(/[;；,]+$/g,"");
+  return !isRegulatoryModelLine(value)&&/^(?=.*[A-Z])(?=.*\d)[A-Z0-9][A-Z0-9._/-]{2,59}$/i.test(value)?value:"";
+}
 function validValue(key:FieldKey,raw:string):string {
   if(key==="modelName"&&isRegulatoryModelLine(raw))return "";
   const value=raw.trim().replace(/[;，,]+$/g,"");
   if(key==="serialNumber"&&/^\d{6,60}$/.test(value))return value;
-  if(key==="modelName"||key==="serialNumber")return /^(?=.*[A-Z])(?=.*\d)[A-Z0-9][A-Z0-9._/-]{2,59}$/i.test(value)?value:"";
+  if(key==="modelName")return validModelValue(modelValueText(value));
+  if(key==="serialNumber")return /^(?=.*[A-Z])(?=.*\d)[A-Z0-9][A-Z0-9._/-]{2,59}$/i.test(value)?value:"";
   if(key==="manufacturedAt"){
     const match=value.match(/^(\d{4})(?:[-./년\s]*)(\d{2}|\d)(?:[-./월\s]*)(\d{2}|\d)(?:일)?$/);
     if(!match)return "";const y=+match[1],m=+match[2],d=+match[3],date=new Date(Date.UTC(y,m-1,d));
@@ -40,7 +49,7 @@ export function extractProductLabel(text:string,confidence:number,layout:LabelLi
   const conflicts=new Set<FieldKey>();
   function offer(key:FieldKey,value:string,score:number,reason:string){
     if(!value||!Number.isFinite(score)||conflicts.has(key))return;const current=suggestions[key];
-    if(current.value&&current.value!==value){conflicts.add(key);suggestions[key]={value:"",confidence:"LOW",score:0,reason:"서로 다른 후보가 있어 제안하지 않습니다."};return;}
+    if(current.value&&current.value!==value){conflicts.add(key);suggestions[key]={value:"",candidates:[current.value,value],confidence:"LOW",score:0,reason:"서로 다른 후보가 있어 제안하지 않습니다."};return;}
     if(score/100<current.score)return;
     suggestions[key]={value,score:Math.max(0,Math.min(100,score))/100,confidence:score>=90?"HIGH":score>=60?"MEDIUM":"LOW",reason};
   }

@@ -83,7 +83,7 @@ export function ProductLabelCapture({onAnalyzed,onDiscard,disabled=false}:{onAna
           const suggestion=result.suggestions[key];
           return <article className={styles.candidate} key={key} aria-label={`${labels[key]} 후보`}>
             <h4>{labels[key]} 후보</h4>
-            <strong>{key==="category"?categories[suggestion.value as keyof typeof categories]:suggestion.value}</strong>
+            <strong>{key==="category"?categories[suggestion.value as keyof typeof categories]:(suggestion.candidates??[suggestion.value]).join(' / ')}</strong>
             <p>{suggestion.confidence==="LOW"?"신뢰도 낮음":"확인 필요"} · 사진과 비교해 주세요</p>
             <small>{suggestion.reason}</small>
           </article>;
