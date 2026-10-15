@@ -1,6 +1,6 @@
 import type {Worker} from 'tesseract.js';
 import {extractProductLabel,type LabelRecognition,type LabelLine} from './extract';
-import {modelRegions,compareModelReadings,type ModelReading} from './model-region';
+import {modelRegions,resolveModelReadings,type ModelReading} from './model-region';
 import {BrowserResultCache} from './browser-result-cache';
 
 export interface LabelRecognitionProvider {recognize(file:File,signal:AbortSignal,progress:(value:number)=>void):Promise<LabelRecognition>}
@@ -66,7 +66,7 @@ export const browserLabelOcr:LabelRecognitionProvider={
         for(const region of regions)readings.push(await readRegion(region,6,'latin-word'));
       }
       const result=extractProductLabel(data.text,data.confidence,lines,corroboration);
-      result.suggestions.modelName=compareModelReadings(result.suggestions.modelName,readings);
+      result.suggestions.modelName=resolveModelReadings(data.text,result.suggestions.modelName,readings);
       result.fields.modelName=result.suggestions.modelName.confidence==='HIGH'?result.suggestions.modelName.value:'';
       check();cache.write(digest,result);return result;
     }finally{signal.removeEventListener('abort',abort);if(worker)await worker.terminate().catch(()=>undefined);canvas.width=0;canvas.height=0;}

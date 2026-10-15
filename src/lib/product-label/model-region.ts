@@ -1,4 +1,4 @@
-import {isRegulatoryModelLine,validModelValue,type FieldSuggestion,type LabelLine} from "./extract";
+import {rawModelEvidence,isRegulatoryModelLine,validModelValue,type FieldSuggestion,type LabelLine} from "./extract";
 
 // Coordinates select evidence, never substitute look-alike characters (S/5, O/0).
 export function modelRegions(lines:LabelLine[],width:number,height:number) {
@@ -33,6 +33,17 @@ export function modelSearchBands(width:number,height:number){
 }
 
 export type ModelReading={text:string;confidence:number;mode?:string};
+// User-selected policy: the explicit model in the displayed first-pass text
+// takes precedence over auxiliary crops. MEDIUM means editable/review needed,
+// not a measured OCR probability. Existing/manual inputs remain reducer-owned.
+export function resolveModelReadings(text:string,initial:FieldSuggestion,readings:ModelReading[]):FieldSuggestion {
+  const raw=rawModelEvidence(text);
+  if(raw.values.length===1)return {value:raw.values[0],score:.60,confidence:'MEDIUM',reason:'인식된 글자의 모델명 표시를 그대로 입력합니다. 사진과 비교해 수정할 수 있습니다.'};
+  if(raw.values.length>1)return {value:raw.values[0],candidates:raw.values.slice(0,4),score:0,confidence:'LOW',reason:'원문에 서로 다른 모델명이 있어 자동 입력하지 않았습니다.'};
+  const compared=compareModelReadings(initial,readings);
+  if(!raw.hasLabel&&compared.value)return {...compared,score:Math.min(.59,compared.score),confidence:'LOW',reason:'원문에서 명시적인 모델명 표시를 확인하지 못했습니다.'};
+  return compared;
+}
 // Same-engine scale repetition is not independent confirmation. Competing
 // labelled/full-image and crop readings remain visible but never auto-fill.
 export function compareModelReadings(initial:FieldSuggestion,readings:ModelReading[]):FieldSuggestion {

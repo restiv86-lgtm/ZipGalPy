@@ -27,6 +27,21 @@ export function validModelValue(raw:string):string {
   const value=raw.trim().replace(/^[：:|]+\s*/,"").replace(/[;；,]+$/g,"");
   return !isRegulatoryModelLine(value)&&/^(?=.*[A-Z])(?=.*\d)[A-Z0-9][A-Z0-9._/-]{2,59}$/i.test(value)?value:"";
 }
+// Read only explicitly labelled, same-line values from the text shown to the
+// user. Never infer a primary model from a certification ID or a bare token.
+export function rawModelEvidence(text:string):{hasLabel:boolean;values:string[]} {
+  const values=new Set<string>();
+  let hasLabel=false;
+  for(const line of text.split(/\r?\n/)){
+    const clean=line.trim().replace(/^[|｜]+\s*/,"");
+    if(isRegulatoryModelLine(clean))continue;
+    const match=clean.match(labels.modelName);if(!match)continue;
+    hasLabel=true;
+    const value=validModelValue(modelValueText(clean.slice(match[0].length)));
+    if(value)values.add(value);
+  }
+  return {hasLabel,values:[...values]};
+}
 function validValue(key:FieldKey,raw:string):string {
   if(key==="modelName"&&isRegulatoryModelLine(raw))return "";
   const value=raw.trim().replace(/[;，,]+$/g,"");
