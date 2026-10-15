@@ -53,8 +53,18 @@ Run the synthetic policy/layout regression with `pnpm exec tsx scripts/test-mode
 
 ## Displayed raw model priority: local revision (2026-10-15)
 
+The extraction policy below remains active. Its empty/manual-field protection is superseded for explicit photo recognition by the photo-priority form revision below.
+
 At the user's request, a unique valid model value following an explicit model caption in the displayed first-pass text takes precedence over conflicting layout/crop readings. Model text ends before a following labelled capacity, rating, serial or manufacturer column. The exact recognized characters are preserved: MB73GBB572 stays MB73GBB572 even if a crop reads M873GBB572. There is no fixture lookup or character repair. Multiple different model values in the raw text, certification/radio context, numeric-only identifiers and bare unlabelled tokens cannot gain this priority.
 
 An explicit raw model becomes a MEDIUM editable proposal with policy score 0.60, so the existing form reducer applies it only to an empty, untouched model field. This score expresses the requested source-priority/review policy, not measured OCR accuracy. Existing typed, cleared and prefilled values remain protected. Manufacturer extraction and application are independent and unchanged. The review message states that recognized values can be compared with the photo and edited; no candidate selection buttons are added.
 
 `pnpm exec tsx scripts/test-raw-model-autofill.ts` covers raw/auxiliary conflicts, column separation, no character correction, multiple raw values, explicit-label requirements, regulatory exclusion, independent manufacturer application, existing/manual/cleared values and discard. These are synthetic pipeline tests using the real extraction and form reducer, not a new phone or production-browser photo accuracy measurement. This revision was validated locally before production deployment approval.
+
+## Explicit photo priority in create/edit forms: local revision (2026-10-15)
+
+When the user presses label recognition, eligible model and manufacturer proposals from that photo replace existing, manually edited or manually cleared values in both create and edit forms. Missing, empty and LOW proposals keep the current field value. The displayed-raw-model extraction and certification exclusion remain unchanged. Photo application affects only model and manufacturer: name, category, serial, dates, price and memo are untouched. The separate AI/legacy proposal action retains its prior empty-only behavior. Analysis does not submit or save the item.
+
+Each successful photo application snapshots the values it actually overwrites, including typing done while OCR was pending. Discard restores the immediately preceding values; changes made manually after application are retained. Starting then cancelling another run keeps the previous photo's applied values. Selecting a replacement photo alone does not roll back or apply form values; it aborts and invalidates the previous OCR generation. A late, cancelled or replaced result cannot dispatch a new form update.
+
+Run `pnpm exec tsx scripts/test-label-photo-priority.ts` for reducer transactions and `node scripts/test-label-photo-component.mjs` for the real create/edit form and capture event handlers with isolated hooks, UI dependencies and deferred OCR. The component regression deliberately resolves photo A after photo B, cancels pending work, replaces photos and verifies exact undo, missing-field preservation, post-analysis edits and unrelated date/price/memo values. It executes no DOM/browser engine, external AI, network or item-save operation. This revision was validated locally before production deployment approval.

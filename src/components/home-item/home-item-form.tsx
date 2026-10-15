@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ProductLabelCapture } from "./product-label-capture";
 import { emptyLabelFields, type LabelFields } from "@/lib/product-label/extract";
-import { labelFormReducer, type LabelProposal } from "@/lib/product-label/autofill";
+import { labelFormReducer, type LabelProposal, type LabelAnalysisSource } from "@/lib/product-label/autofill";
 import { ItemPhotoEditor, type ItemPhotoEditorHandle } from "./item-photo-editor";
 import { AttachmentPanel } from "@/components/attachments/attachment-panel";
 import photoStyles from "./item-photos.module.css";
@@ -30,7 +30,7 @@ export function HomeItemForm({ homeId, item, homes = [], requireHomeSelection = 
   const fields=labelForm.fields;
   const editField=(key:keyof LabelFields,value:string)=>dispatchLabel({type:"edited",key,value});
   const discardLabel=()=>dispatchLabel({type:"discard"});
-  function analyzedLabel(suggestions:Partial<Record<keyof LabelFields,LabelProposal>>){dispatchLabel({type:"analyzed",suggestions});}
+  function analyzedLabel(suggestions:Partial<Record<keyof LabelFields,LabelProposal>>,source:LabelAnalysisSource="photo"){dispatchLabel({type:source==="photo"?"photoAnalyzed":"analyzed",suggestions});}
   function confirmation(key:keyof LabelFields){return labelForm.automatic[key]?.confidence==="MEDIUM"?<small id={`${key}-label-check`} role="status">확인 필요 · 라벨과 비교하고 수정해 주세요.</small>:null;}
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -58,8 +58,8 @@ export function HomeItemForm({ homeId, item, homes = [], requireHomeSelection = 
   return <form className={styles.form} onSubmit={submit}>
     <ItemPhotoEditor ref={photoEditor} itemId={item?.id} disabled={busy||!!savedItem}>
       <button type="button" className={photoStyles.labelToggle} disabled={busy||!!savedItem} aria-expanded={showLabel} onClick={()=>{if(showLabel)discardLabel();setShowLabel(!showLabel);}}><span>제품 라벨 촬영/분석</span><span aria-hidden="true">{showLabel?"−":"＋"}</span></button>
-      <small className={photoStyles.labelHint}>HIGH/MEDIUM은 빈칸만 채웁니다. LOW는 후보로만 표시하며, 저장 전 모두 수정할 수 있어요.</small>
-      {showLabel&&<ProductLabelCapture onAnalyzed={analyzedLabel} onDiscard={discardLabel} disabled={busy||!!savedItem}/>}
+      <small className={photoStyles.labelHint}>라벨 인식을 누르면 모델명·제조사를 사진의 인식값으로 바꿉니다. 인식되지 않은 항목은 유지하며, 저장 전 수정할 수 있어요.</small>
+      {showLabel&&<ProductLabelCapture onAnalyzed={analyzedLabel} onAnalysisStarted={()=>dispatchLabel({type:"photoStarted"})} onDiscard={discardLabel} disabled={busy||!!savedItem}/>}
     </ItemPhotoEditor>
     {homes.length > 0 && <>
       <label htmlFor="targetHomeId">{item ? "물건이 있는 집" : "어느 집의 물건인가요? *"}</label>
