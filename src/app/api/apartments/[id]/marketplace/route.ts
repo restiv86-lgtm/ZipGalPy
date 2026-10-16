@@ -10,7 +10,8 @@ export async function POST(request: Request, context: RouteContext<"/api/apartme
   const parsed = marketplaceSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ message: parsed.error.issues[0]?.message ?? "입력값을 확인해 주세요." }, { status: 400 });
   const { id } = await context.params;
-  const post = await createMarketplacePost(userId, id, parsed.data);
-  if (!post) return NextResponse.json({ message: "이 아파트 커뮤니티 참여 회원만 등록할 수 있습니다." }, { status: 403 });
-  return NextResponse.json({ post }, { status: 201 });
+  const result = await createMarketplacePost(userId, id, parsed.data);
+  if (!result) return NextResponse.json({ message: "이 아파트 커뮤니티 참여 회원만 등록할 수 있습니다." }, { status: 403 });
+  const {reused,...post}=result;
+  return NextResponse.json({post,reused}, { status: reused?200:201 });
 }

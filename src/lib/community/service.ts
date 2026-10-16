@@ -1,3 +1,4 @@
+import {activeMarketplaceStatuses,type MarketplaceLink} from "./marketplace-state";
 import type { CommunityPostCategory, MarketplacePostStatus, MarketplacePostType } from "@/generated/prisma/client";
 import { getPrisma } from "@/lib/prisma";
 
@@ -76,20 +77,43 @@ export async function getMarketplacePost(userId: string, apartmentId: string, po
   return post ? { ...post, sellerMember: post.sellerMember ?? withdrawnMember } : null;
 }
 
-export async function createMarketplacePost(userId: string, apartmentId: string, data: { type: MarketplacePostType; title: string; description: string; price: number; sourceHomeItemId?: string }) {
-  const member = await getMembership(userId, apartmentId);
-  if (!member) return null;
-  if (data.sourceHomeItemId && !(await getPrisma().homeItem.findFirst({ where: { id: data.sourceHomeItemId, home: { userId } }, select: { id: true } }))) return null;
-  return getPrisma().marketplacePost.create({ data: { ...data, apartmentId, sellerMemberId: member.id } });
+export class MarketplaceConflict extends Error {constructor(readonly post:MarketplaceLink){super("같은 물건의 진행 중인 글이 있습니다. 기존 글을 확인해 주세요.");}}
+const marketplaceSelect={id:true,apartmentId:true,type:true,status:true} as const;
+export async function createMarketplacePost(userId:string,apartmentId:string,data:{type:MarketplacePostType;title:string;description:string;price:number;sourceHomeItemId?:string;requestId?:string}){
+  const prisma=getPrisma();
+  return prisma.$transaction(async tx=>{
+    const member=await tx.apartmentMember.findUnique({where:{apartmentId_userId:{apartmentId,userId}},select:{id:true}});if(!member)return null;
+    const {requestId,...fields}=data;
+    if(requestId){
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${'market-request:'+requestId}, 0))`;
+      const previous=await tx.marketplacePost.findUnique({where:{id:requestId},select:{...marketplaceSelect,sellerMember:{select:{userId:true}}}});
+      if(previous){if(previous.apartmentId!==apartmentId||previous.sellerMember?.userId!==userId)return null;const{sellerMember:_,...post}=previous;void _;return{...post,reused:true};}
+    }
+    if(fields.sourceHomeItemId){
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${'market-item:'+fields.sourceHomeItemId}, 0))`;
+      if(!await tx.homeItem.findFirst({where:{id:fields.sourceHomeItemId,home:{userId}},select:{id:true}}))return null;
+      const existing=await tx.marketplacePost.findFirst({where:{sourceHomeItemId:fields.sourceHomeItemId,status:{in:[...activeMarketplaceStatuses]}},orderBy:[{createdAt:'desc'},{id:'desc'}],select:marketplaceSelect});
+      if(existing)return{...existing,reused:true};
+    }
+    const post=await tx.marketplacePost.create({data:{...fields,...(requestId?{id:requestId}:{}),apartmentId,sellerMemberId:member.id},select:marketplaceSelect});return{...post,reused:false};
+  });
 }
 
-export async function updateMarketplaceStatus(userId: string, apartmentId: string, postId: string, status: MarketplacePostStatus) {
-  const prisma = getPrisma();
-  return prisma.$transaction(async (tx) => {
-    const post = await tx.marketplacePost.findFirst({ where: { id: postId, apartmentId, sellerMember: { userId } }, select: { id: true, type: true, sourceHomeItemId: true } });
-    if (!post) return false;
-    await tx.marketplacePost.update({ where: { id: post.id }, data: { status } });
-    if (status === "COMPLETED" && post.sourceHomeItemId) await tx.homeItem.updateMany({ where: { id: post.sourceHomeItemId, home: { userId } }, data: { status: post.type === "SELL" ? "SOLD" : "GIVEN_AWAY" } });
+export async function updateMarketplaceStatus(userId:string,apartmentId:string,postId:string,status:MarketplacePostStatus){
+  const prisma=getPrisma();
+  return prisma.$transaction(async tx=>{
+    const post=await tx.marketplacePost.findFirst({where:{id:postId,apartmentId,sellerMember:{userId}},select:{id:true,type:true,sourceHomeItemId:true}});if(!post)return false;
+    if(post.sourceHomeItemId){
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${'market-item:'+post.sourceHomeItemId}, 0))`;
+      // Recheck after acquiring the same lock used by creation.
+      if(!await tx.marketplacePost.findFirst({where:{id:postId,apartmentId,sellerMember:{userId}},select:{id:true}}))return false;
+      if(status==='ACTIVE'||status==='RESERVED'){
+        const other=await tx.marketplacePost.findFirst({where:{sourceHomeItemId:post.sourceHomeItemId,id:{not:postId},status:{in:[...activeMarketplaceStatuses]}},select:marketplaceSelect});
+        if(other)throw new MarketplaceConflict(other);
+      }
+    }
+    await tx.marketplacePost.update({where:{id:post.id},data:{status}});
+    if(status==='COMPLETED'&&post.sourceHomeItemId)await tx.homeItem.updateMany({where:{id:post.sourceHomeItemId,home:{userId}},data:{status:post.type==='SELL'?'SOLD':'GIVEN_AWAY'}});
     return true;
   });
 }

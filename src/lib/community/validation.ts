@@ -22,6 +22,7 @@ export const marketplaceSchema = z.object({
   description: z.string().trim().min(2).max(5000),
   price: formMoneySchema(2_000_000_000),
   sourceHomeItemId: z.string().min(1).optional(),
+  requestId:z.string().uuid().optional(),
 }).superRefine((value, context) => {
   if (value.type === "SELL" && value.price < 1) context.addIssue({ code: "custom", path: ["price"], message: "판매 가격을 입력해 주세요." });
   if (value.type === "GIVEAWAY" && value.price !== 0) context.addIssue({ code: "custom", path: ["price"], message: "나눔 가격은 0원이어야 합니다." });

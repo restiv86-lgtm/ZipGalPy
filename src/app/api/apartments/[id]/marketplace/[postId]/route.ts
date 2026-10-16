@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { updateMarketplaceStatus } from "@/lib/community/service";
+import { updateMarketplaceStatus, MarketplaceConflict } from "@/lib/community/service";
 import { getAuthenticatedUserId, isSameOrigin } from "@/lib/community/security";
 import { marketplaceStatusSchema } from "@/lib/community/validation";
 
@@ -10,6 +10,8 @@ export async function PATCH(request: Request, context: RouteContext<"/api/apartm
   const parsed = marketplaceStatusSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ message: "거래 상태를 확인해 주세요." }, { status: 400 });
   const { id, postId } = await context.params;
+  try{
   if (!(await updateMarketplaceStatus(userId, id, postId, parsed.data.status))) return NextResponse.json({ message: "상태 변경 권한이 없습니다." }, { status: 403 });
   return NextResponse.json({ ok: true });
+  }catch(error){if(error instanceof MarketplaceConflict)return NextResponse.json({message:error.message,post:error.post},{status:409});return NextResponse.json({message:"거래 상태를 바꾸지 못했습니다. 다시 확인해 주세요."},{status:500});}
 }

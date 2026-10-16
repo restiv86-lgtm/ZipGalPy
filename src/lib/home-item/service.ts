@@ -19,7 +19,7 @@ export async function listAllOwnedItems(userId: string, requestedHomeId?: string
   const homeId = requestedHomeId && homes.some((home) => home.id === requestedHomeId) ? requestedHomeId : undefined;
   const items = await prisma.homeItem.findMany({
     where: { home: { userId }, ...(homeId ? { homeId } : {}) },
-    include: { home: { select: { id: true, name: true } }, images: { where: {purpose:{not:"LABEL"},fileAsset:{status:"READY",storeId:process.env.BLOB_STORE_ID,mimeType:{startsWith:"image/"}}},select:{id:true},orderBy:[{sortOrder:"asc"},{createdAt:"asc"}],take:1 } },
+    include: { marketplacePosts:{where:{status:{in:["ACTIVE","RESERVED"]}},select:{id:true,apartmentId:true,type:true,status:true},orderBy:[{createdAt:"desc" as const},{id:"desc" as const}]}, home: { select: { id: true, name: true } }, images: { where: {purpose:{not:"LABEL"},fileAsset:{status:"READY",storeId:process.env.BLOB_STORE_ID,mimeType:{startsWith:"image/"}}},select:{id:true},orderBy:[{sortOrder:"asc"},{createdAt:"asc"}],take:1 } },
     orderBy: { createdAt: "desc" },
   });
   return { homes, items, homeId };
@@ -32,7 +32,7 @@ export async function listOwnedItems(userId: string, homeId: string) {
 }
 
 export function getOwnedItem(userId: string, homeId: string, itemId: string) {
-  return getPrisma().homeItem.findFirst({ where: { id: itemId, homeId, home: { userId } }, include: { home: { select: { id: true, name: true } }, repairs: { select: { id: true, type: true, title: true, repairDate: true, cost: true }, orderBy: { repairDate: "desc" } }, marketplacePosts: { select: { id: true, apartmentId: true, type: true, status: true }, orderBy: { createdAt: "desc" }, take: 5 } } });
+  return getPrisma().homeItem.findFirst({ where: { id: itemId, homeId, home: { userId } }, include: { home: { select: { id: true, name: true } }, repairs: { select: { id: true, type: true, title: true, repairDate: true, cost: true }, orderBy: { repairDate: "desc" } }, marketplacePosts:{where:{status:{in:["ACTIVE","RESERVED"]}},select:{id:true,apartmentId:true,type:true,status:true},orderBy:[{createdAt:"desc" as const},{id:"desc" as const}]} } });
 }
 
 export async function createOwnedItem(userId: string, homeId: string, input: HomeItemInput) {
