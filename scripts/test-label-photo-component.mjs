@@ -21,6 +21,7 @@ const stubs={
   jsx:`export const Fragment='fragment';export const jsx=(type,props,key)=>({type,props:props??{},key});export const jsxs=jsx;`,
   navigation:`export const useRouter=()=>({push(){throw Error('Unexpected navigation');},refresh(){throw Error('Unexpected refresh');}});`,
   link:`export default 'link-stub';`,
+  image:`export default 'img';`,
   photos:`export const ItemPhotoEditor='photo-editor-stub';`,
   attachments:`export const AttachmentPanel='attachment-stub';`,
   inputs:`export const FormattedDateInput='date-input-stub';export const FormattedCurrencyInput='currency-input-stub';`,
@@ -37,6 +38,7 @@ const built=await esbuild.build({
       else if(args.path==='test:ocr'||args.path.endsWith('/browser-ocr'))key='ocr';
       else if(args.path==='next/navigation')key='navigation';
       else if(args.path==='next/link')key='link';
+      else if(args.path==='next/image')key='image';
       else if(args.path.endsWith('/item-photo-editor'))key='photos';
       else if(args.path.endsWith('/attachment-panel'))key='attachments';
       else if(args.path.endsWith('/formatted-inputs'))key='inputs';

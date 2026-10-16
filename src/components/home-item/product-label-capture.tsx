@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import Image from "next/image";
 import { type LabelFields, type LabelRecognition } from "@/lib/product-label/extract";
 import type { LabelProposal, LabelAnalysisSource } from "@/lib/product-label/autofill";
 import styles from "./product-label.module.css";
@@ -11,6 +12,8 @@ const categories={APPLIANCE:"가전",FURNITURE:"가구",KITCHEN:"주방",HOUSEHO
 export function ProductLabelCapture({onAnalyzed,onDiscard,onAnalysisStarted,disabled=false}:{onAnalyzed:(suggestions:Partial<Record<keyof LabelFields,LabelProposal>>,source?:LabelAnalysisSource)=>void;onDiscard:()=>void;onAnalysisStarted?:()=>void;disabled?:boolean}) {
   const inputId=useId();
   const [file,setFile]=useState<File|null>(null),[busy,setBusy]=useState(false),[progress,setProgress]=useState(0);
+  const [preview,setPreview]=useState<string|null>(null);
+  useEffect(()=>()=>{if(preview)URL.revokeObjectURL(preview);},[preview]);
   const [message,setMessage]=useState(""),[result,setResult]=useState<LabelRecognition|null>(null);
   const controller=useRef<AbortController|null>(null),generation=useRef(0);
   const [aiEnabled,setAiEnabled]=useState(false),[showConsent,setShowConsent]=useState(false),[consent,setConsent]=useState(false),[aiBusy,setAiBusy]=useState(false),[aiResult,setAiResult]=useState<AiLabelResponse|null>(null);
@@ -44,7 +47,7 @@ export function ProductLabelCapture({onAnalyzed,onDiscard,onAnalysisStarted,disa
   }
   useEffect(()=>()=>{generation.current++;controller.current?.abort();},[]);
   function cancel(){generation.current++;controller.current?.abort();resetAi();setBusy(false);setResult(null);onDiscard();setMessage("이번 분석으로 바꾼 값을 직전 값으로 되돌렸습니다. 이후 직접 수정한 값은 유지합니다.");}
-  function selectFile(next:File|null){generation.current++;controller.current?.abort();resetAi();setBusy(false);setProgress(0);setFile(next);setResult(null);setMessage("");}
+  function selectFile(next:File|null){generation.current++;controller.current?.abort();resetAi();setBusy(false);setProgress(0);setFile(next);setPreview(next?URL.createObjectURL(next):null);setResult(null);setMessage("");}
   async function recognize() {
     if(!file)return;
     const active=++generation.current;
@@ -64,6 +67,7 @@ export function ProductLabelCapture({onAnalyzed,onDiscard,onAnalysisStarted,disa
   }
   return <section className={styles.panel} aria-labelledby={`${inputId}-title`} aria-busy={busy||aiBusy}>
     <h2 id={`${inputId}-title`}>제품 라벨 사진으로 입력하기</h2>
+    {preview&&<div className={styles.selectedPreview}><Image src={preview} alt="선택한 제품 라벨 미리보기" width={1000} height={700} unoptimized/><span>선택한 사진 · 분석만으로 저장되지 않아요</span></div>}
     <p>명판을 밝고 정면으로 촬영해 주세요. 라벨 인식을 누르면 모델명·제조사를 새 인식값으로 바꿉니다. 읽히지 않은 값은 유지하고 LOW는 후보로 표시합니다. 1차 OCR은 기기 안에서 처리하며 AI는 직접 선택하고 동의한 경우에만 사진을 외부로 전송합니다. 분석만으로 정보나 사진이 저장되지 않습니다.</p>
     <label htmlFor={inputId}>저장된 라벨 사진 선택</label>
     <input id={inputId} type="file" accept="image/jpeg,image/png,image/webp" disabled={busy||aiBusy||disabled}

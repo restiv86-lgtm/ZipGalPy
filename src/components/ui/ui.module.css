@@ -1,7 +1,7 @@
 .serviceHeader{min-height:70px;border-bottom:1px solid var(--zg-line);background:rgba(255,255,255,.94);backdrop-filter:blur(12px);position:sticky;top:0;z-index:20}
 .serviceInner{width:min(var(--zg-content),calc(100% - 40px));min-height:70px;margin:auto;display:flex;align-items:center;justify-content:space-between;gap:28px}
 .serviceNav{display:flex;align-items:center;gap:8px;margin-left:auto}
-.serviceNav a,.serviceNav button{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:8px 12px;border:0;border-radius:10px;background:transparent;color:#43645e;font-size:14px;font-weight:750;cursor:pointer;white-space:nowrap}
+.serviceNav a,.serviceNav button{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:8px 12px;border:0;border-radius:13px;background:transparent;color:#43645e;font-size:14px;font-weight:750;cursor:pointer;white-space:nowrap}
 .serviceNav a:hover,.serviceNav button:hover{background:var(--zg-mint);color:var(--zg-brand)}
 .serviceNav .account{border:1px solid var(--zg-line);background:#fff;color:var(--zg-ink)}
 .serviceNav .primary{background:var(--zg-brand);color:#fff}
@@ -31,3 +31,8 @@
 .card:hover{transform:translateY(-2px);border-color:#9bcfc4;box-shadow:var(--zg-shadow-hover)}
 @media(max-width:760px){.serviceInner{width:min(100% - 28px,var(--zg-content));min-height:64px;gap:12px}.serviceNav{gap:2px;overflow-x:auto}.serviceNav a,.serviceNav button{min-height:42px;padding:8px 10px}.serviceNav .hideMobile{display:none}.pageHeader{display:grid;gap:16px}.pageHeader>:last-child{width:100%}.breadcrumb{font-size:13px;margin-bottom:16px}}
 @media(max-width:430px){.serviceInner{width:calc(100% - 24px)}.serviceNav a,.serviceNav button{min-height:40px;padding:7px 8px;font-size:12px}.serviceNav .hideMobile{display:none}.pageHeader h1{font-size:28px}.empty{padding:40px 18px}}
+
+/* Ivory forest refinement */
+
+/* Ivory / forest shell */
+.serviceHeader{height:auto;min-height:76px;background:#f6f5ecf2;border-color:var(--zg-line);box-shadow:none}.serviceInner{min-height:76px}.serviceNav{gap:3px}.serviceNav a,.serviceNav button{color:var(--zg-muted);font-size:13px;min-height:44px}.serviceNav .account{background:var(--zg-surface);border-color:var(--zg-line);color:var(--zg-brand)}.serviceNav .primary{background:var(--zg-brand);color:white}.pageHeader h1{letter-spacing:-.055em}.primary,.secondary,.danger{gap:8px}.empty{background:var(--zg-surface);padding:55px 24px}.surface,.card{background:var(--zg-surface)}@media(max-width:760px){.serviceHeader,.serviceInner{min-height:66px}.serviceNav a,.serviceNav button{font-size:12px;padding:8px}.serviceInner{gap:12px}.serviceNav{gap:0}}
