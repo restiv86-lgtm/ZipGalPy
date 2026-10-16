@@ -12,6 +12,6 @@ export async function PATCH(request: Request, context: RouteContext<"/api/apartm
   const { id, postId } = await context.params;
   try{
   if (!(await updateMarketplaceStatus(userId, id, postId, parsed.data.status))) return NextResponse.json({ message: "상태 변경 권한이 없습니다." }, { status: 403 });
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, status:parsed.data.status });
   }catch(error){if(error instanceof MarketplaceConflict)return NextResponse.json({message:error.message,post:error.post},{status:409});return NextResponse.json({message:"거래 상태를 바꾸지 못했습니다. 다시 확인해 주세요."},{status:500});}
 }
