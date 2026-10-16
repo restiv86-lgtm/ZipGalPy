@@ -1,3 +1,4 @@
+import {formMoneySchema} from "@/lib/forms/validation";
 import { z } from "zod";
 
 export const postSchema = z.object({
@@ -19,7 +20,7 @@ export const marketplaceSchema = z.object({
   type: z.enum(["SELL", "GIVEAWAY"]),
   title: z.string().trim().min(2).max(120),
   description: z.string().trim().min(2).max(5000),
-  price: z.coerce.number().int().min(0).max(2_000_000_000),
+  price: formMoneySchema(2_000_000_000),
   sourceHomeItemId: z.string().min(1).optional(),
 }).superRefine((value, context) => {
   if (value.type === "SELL" && value.price < 1) context.addIssue({ code: "custom", path: ["price"], message: "판매 가격을 입력해 주세요." });

@@ -1,7 +1,8 @@
+import {formDateSchema} from "@/lib/forms/validation";
 import { z } from "zod";
 
 const optionalText = (max: number) => z.string().trim().max(max).optional().transform((value) => value || null);
-const optionalDate = z.preprocess((value) => value === "" || value == null ? null : value, z.coerce.date().nullable());
+const optionalDate = z.preprocess((value) => value === "" || value == null ? null : value, formDateSchema.nullable());
 
 export const documentSchema = z.object({
   type: z.enum(["CONTRACT", "WARRANTY", "RECEIPT", "MANUAL", "INSURANCE", "TAX", "CERTIFICATE", "OTHER"]),
