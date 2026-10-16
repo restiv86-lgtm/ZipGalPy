@@ -14,7 +14,7 @@ export async function PATCH(request: Request) {
     await getPrisma().$transaction(async tx => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`${target.type}:${target.id}`}, 0))`;
       const owned = await tx.homeItem.findFirst({where:{id:target.id,home:{userId}},select:{id:true}});
-      const photos = await tx.attachment.findMany({where:{...targetWhere(target),fileAsset:{status:"READY",storeId:process.env.BLOB_STORE_ID,mimeType:{startsWith:"image/"}}},select:{id:true,purpose:true}});
+      const photos = await tx.attachment.findMany({where:{...targetWhere(target),purpose:{not:"LABEL"},fileAsset:{status:"READY",storeId:process.env.BLOB_STORE_ID,mimeType:{startsWith:"image/"}}},select:{id:true,purpose:true}});
       if (!owned || photos.length !== ids.length || photos.some(photo=>!ids.includes(photo.id))) throw new AttachmentError(409,"사진 목록이 변경됐습니다. 새로고침 후 다시 시도해 주세요.");
       for (const [sortOrder,id] of ids.entries()) {
         const oldPurpose=photos.find(photo=>photo.id===id)!.purpose;

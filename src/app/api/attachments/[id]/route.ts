@@ -2,6 +2,25 @@ import { getPrisma } from "@/lib/prisma";
 import { del } from "@vercel/blob";
 import { attachmentTarget, canAccessTarget } from "@/lib/attachments/access";
 import { AttachmentError, attachmentError, attachmentUser } from "@/lib/attachments/http";
+import {z} from "zod";
+
+export async function PATCH(request:Request,context:{params:Promise<{id:string}>}){
+  try{
+    const userId=await attachmentUser(request,true),{id}=await context.params;
+    if(!process.env.BLOB_STORE_ID)throw new AttachmentError(503,"파일 저장소가 준비되지 않았습니다.");
+    const input=z.object({purpose:z.enum(["PHOTO","LABEL"])}).safeParse(await request.json());
+    if(!input.success)throw new AttachmentError(400,"사진 용도를 확인해 주세요.");
+    const db=getPrisma();
+    await db.$transaction(async tx=>{
+      const row=await tx.attachment.findFirst({where:{id,homeItem:{home:{userId}},fileAsset:{status:"READY",storeId:process.env.BLOB_STORE_ID,mimeType:{startsWith:"image/"}}},select:{id:true,homeItemId:true}});
+      if(!row?.homeItemId)throw new AttachmentError(404,"사진을 찾지 못했습니다.");
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`item:${row.homeItemId}`}, 0))`;
+      const updated=await tx.attachment.updateMany({where:{id,homeItem:{home:{userId}},fileAsset:{status:"READY",storeId:process.env.BLOB_STORE_ID}},data:{purpose:input.data.purpose}});
+      if(!updated.count)throw new AttachmentError(404,"사진을 찾지 못했습니다.");
+    });
+    return Response.json({ok:true});
+  }catch(error){return attachmentError(error);}
+}
 
 export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
   try {

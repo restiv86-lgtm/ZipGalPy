@@ -6,13 +6,16 @@ import { type LabelFields, type LabelRecognition } from "@/lib/product-label/ext
 import type { LabelProposal, LabelAnalysisSource } from "@/lib/product-label/autofill";
 import styles from "./product-label.module.css";
 import { compareLabelResults, labelKeys, shouldOfferAi, type AiLabelResponse } from "@/lib/product-label/ai";
+import {validateItemPhoto,type ItemImage} from "@/lib/attachments/item-photo-draft";
 
 const labels: Record<keyof LabelFields,string>={brand:"제조사",name:"제품명",modelName:"모델명",manufacturedAt:"제조일자",serialNumber:"시리얼번호",category:"카테고리 제안"};
 const categories={APPLIANCE:"가전",FURNITURE:"가구",KITCHEN:"주방",HOUSEHOLD:"생활용품",DIGITAL:"디지털",HOBBY:"취미",CHILDCARE:"육아",OTHER:"기타"};
-export function ProductLabelCapture({onAnalyzed,onDiscard,onAnalysisStarted,disabled=false}:{onAnalyzed:(suggestions:Partial<Record<keyof LabelFields,LabelProposal>>,source?:LabelAnalysisSource)=>void;onDiscard:()=>void;onAnalysisStarted?:()=>void;disabled?:boolean}) {
+export function ProductLabelCapture({onAnalyzed,onDiscard,onAnalysisStarted,onFileSelected,savedImages=[],disabled=false}:{onAnalyzed:(suggestions:Partial<Record<keyof LabelFields,LabelProposal>>,source?:LabelAnalysisSource)=>void;onDiscard:()=>void;onAnalysisStarted?:()=>void;onFileSelected?:(file:File|null,sourceId?:string)=>Promise<void>;savedImages?:ItemImage[];disabled?:boolean}) {
   const inputId=useId();
   const [file,setFile]=useState<File|null>(null),[busy,setBusy]=useState(false),[progress,setProgress]=useState(0);
   const [preview,setPreview]=useState<string|null>(null);
+  const [selecting,setSelecting]=useState(false);
+  const selectedSource=useRef<string|undefined>(undefined);
   useEffect(()=>()=>{if(preview)URL.revokeObjectURL(preview);},[preview]);
   const [message,setMessage]=useState(""),[result,setResult]=useState<LabelRecognition|null>(null);
   const controller=useRef<AbortController|null>(null),generation=useRef(0);
@@ -46,11 +49,19 @@ export function ProductLabelCapture({onAnalyzed,onDiscard,onAnalysisStarted,disa
     finally{aiLock.current=false;setAiBusy(false);}
   }
   useEffect(()=>()=>{generation.current++;controller.current?.abort();},[]);
-  function cancel(){generation.current++;controller.current?.abort();resetAi();setBusy(false);setResult(null);onDiscard();setMessage("이번 분석으로 바꾼 값을 직전 값으로 되돌렸습니다. 이후 직접 수정한 값은 유지합니다.");}
-  function selectFile(next:File|null){generation.current++;controller.current?.abort();resetAi();setBusy(false);setProgress(0);setFile(next);setPreview(next?URL.createObjectURL(next):null);setResult(null);setMessage("");}
+  function cancel(){generation.current++;controller.current?.abort();resetAi();setBusy(false);setSelecting(false);setResult(null);onDiscard();setMessage("이번 분석으로 바꾼 값과 사진 보관 대기를 취소했습니다. 이후 직접 수정한 값과 기존 저장 사진은 유지합니다.");}
+  function selectFile(next:File|null,sourceId?:string){
+    try{if(next)validateItemPhoto(next);}catch(error){setMessage((error as Error).message);return;}
+    const active=++generation.current;controller.current?.abort();resetAi();setBusy(false);setProgress(0);setFile(next);selectedSource.current=sourceId;setPreview(next?URL.createObjectURL(next):null);setResult(null);setMessage("");
+    if(onFileSelected){setSelecting(true);onFileSelected(next,sourceId).then(()=>{if(generation.current===active)setMessage(next?"선택한 라벨 사진은 물건 저장 시 함께 보관됩니다.":"");}).catch(error=>{if(generation.current===active){setFile(null);setPreview(null);setMessage(error.message||"라벨 사진을 준비하지 못했습니다.");}}).finally(()=>{if(generation.current===active)setSelecting(false);});}else setSelecting(false);
+  }
+  async function reuseImage(image:ItemImage){const active=++generation.current;setSelecting(true);try{const response=await fetch(image.contentUrl,{cache:"no-store"});if(!response.ok)throw new Error("저장된 사진을 읽지 못했습니다.");const blob=await response.blob();if(generation.current===active)selectFile(new File([blob],image.fileName,{type:blob.type}),image.id);}catch(error){if(generation.current===active)setMessage((error as Error).message);}finally{if(generation.current===active)setSelecting(false);}}
   async function recognize() {
     if(!file)return;
     const active=++generation.current;
+    try{await onFileSelected?.(file,selectedSource.current);}catch(error){setMessage((error as Error).message);return;}
+    if(generation.current!==active)return;
+    setSelecting(false);
     controller.current?.abort();const abort=new AbortController();controller.current=abort;
     onAnalysisStarted?.();
     resetAi();setBusy(true);setMessage("인식 엔진 준비 중입니다. 첫 실행은 시간이 걸릴 수 있습니다.");setResult(null);setProgress(0);
@@ -69,13 +80,15 @@ export function ProductLabelCapture({onAnalyzed,onDiscard,onAnalysisStarted,disa
     <h2 id={`${inputId}-title`}>제품 라벨 사진으로 입력하기</h2>
     {preview&&<div className={styles.selectedPreview}><Image src={preview} alt="선택한 제품 라벨 미리보기" width={1000} height={700} unoptimized/><span>선택한 사진 · 분석만으로 저장되지 않아요</span></div>}
     <p>명판을 밝고 정면으로 촬영해 주세요. 라벨 인식을 누르면 모델명·제조사를 새 인식값으로 바꿉니다. 읽히지 않은 값은 유지하고 LOW는 후보로 표시합니다. 1차 OCR은 기기 안에서 처리하며 AI는 직접 선택하고 동의한 경우에만 사진을 외부로 전송합니다. 분석만으로 정보나 사진이 저장되지 않습니다.</p>
+    <p>선택한 라벨 사진은 물건을 저장할 때 함께 보관합니다. 분석 취소·패널 닫기는 이번 사진 보관 대기도 취소합니다. 등록 화면을 취소하면 업로드하지 않습니다.</p>
+    {savedImages.length>0&&<><p>저장된 사진은 다시 업로드하지 않고 재사용합니다. 제품 사진을 선택하면 저장 시 라벨로 분류되어 대표사진에서 제외됩니다.</p><div className={styles.actions} aria-label="저장된 사진 재사용">{savedImages.map(image=><button type="button" key={image.id} disabled={busy||aiBusy||disabled||selecting} onClick={()=>reuseImage(image)}>{image.purpose==="LABEL"?"저장된 라벨":"제품 사진"}: {image.fileName} 재사용</button>)}</div></>}
     <label htmlFor={inputId}>저장된 라벨 사진 선택</label>
     <input id={inputId} type="file" accept="image/jpeg,image/png,image/webp" disabled={busy||aiBusy||disabled}
       onChange={event=>selectFile(event.target.files?.[0]??null)} />
     <label htmlFor={`${inputId}-camera`}>카메라로 촬영하기 · 모바일</label>
     <input id={`${inputId}-camera`} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" disabled={busy||aiBusy||disabled}
       onChange={event=>selectFile(event.target.files?.[0]??null)} />
-    <div className={styles.actions}><button type="button" disabled={!file||busy||aiBusy||disabled} onClick={recognize}>라벨 인식하기</button>{busy&&<button type="button" onClick={cancel}>인식 취소</button>}</div>
+    <div className={styles.actions}><button type="button" disabled={!file||busy||aiBusy||disabled||selecting} onClick={recognize}>라벨 인식하기</button>{busy&&<button type="button" onClick={cancel}>인식 취소</button>}</div>
     {busy&&<progress value={progress} max={100} aria-label="라벨 인식 진행률"/>}
     <p role="status" aria-live="polite">{message}</p>
     {result&&aiEnabled&&shouldOfferAi(result)&&!aiResult&&<div className={styles.actions}><button type="button" disabled={busy||aiBusy||disabled} onClick={()=>{setShowConsent(true);setConsent(false);}}>{aiTimedOut?"다시 분석":"AI로 더 정확하게 분석"}</button></div>}

@@ -11,7 +11,8 @@ export const dynamic = "force-dynamic";
 const inputSchema = z.object({
   target: targetSchema, fileName: z.string().min(1).max(200),
   mimeType: z.string().max(100), byteSize: z.number().int().positive(),
-  purpose: z.enum(["PHOTO", "BEFORE", "AFTER", "RECEIPT", "WARRANTY", "QUOTE", "CONTRACT", "DOCUMENT", "COVER"]).default("PHOTO"),
+  purpose: z.enum(["PHOTO", "LABEL", "BEFORE", "AFTER", "RECEIPT", "WARRANTY", "QUOTE", "CONTRACT", "DOCUMENT", "COVER"]).default("PHOTO"),
+  replaceAttachmentId: z.string().min(1).max(100).optional(),
 });
 
 export async function GET(request: Request) {
@@ -37,6 +38,7 @@ export async function POST(request: Request) {
     const parsed = inputSchema.safeParse(await request.json());
     if (!parsed.success) throw new AttachmentError(400, "파일 정보를 확인해 주세요.");
     const input = parsed.data;
+    if ((input.purpose === "LABEL" || input.replaceAttachmentId) && (input.target.type !== "item" || input.purpose !== "LABEL" || !input.mimeType.startsWith("image/"))) throw new AttachmentError(400,"제품 라벨은 물건의 이미지 첨부에만 사용할 수 있습니다.");
     try { validateDeclaration(input.fileName, input.mimeType, input.byteSize); }
     catch (error) { throw new AttachmentError(400, (error as Error).message); }
     if (["home", "marketplace"].includes(input.target.type) && !input.mimeType.startsWith("image/")) {
@@ -46,10 +48,14 @@ export async function POST(request: Request) {
     const storeId = process.env.BLOB_STORE_ID;
     if (!storeId) throw new AttachmentError(503, "파일 저장소가 준비되지 않았습니다.");
     const db = getPrisma();
+    const replacementWhere = input.replaceAttachmentId ? {id:input.replaceAttachmentId,...targetWhere(input.target),purpose:"LABEL",fileAsset:{status:"READY" as const,storeId}} : null;
+    if (replacementWhere && !await db.attachment.findFirst({where:replacementWhere,select:{id:true}})) throw new AttachmentError(404,"교체할 라벨을 찾지 못했습니다.");
+    // Keep the old label until new content is ready. Only one extra reservation is allowed.
+    const attachmentLimit = input.target.type === "home" ? 1 : replacementWhere ? 11 : 10;
     const pending = await db.fileAsset.count({ where: { ownerId: userId, createdAt: { gte: new Date(Date.now() - 3600_000) } } });
     if (pending >= 50) throw new AttachmentError(429, "첨부 요청이 많습니다. 잠시 후 다시 시도해 주세요.");
     const count = await db.attachment.count({ where: targetWhere(input.target) });
-    if (count >= (input.target.type === "home" ? 1 : 10)) throw new AttachmentError(400, "첨부 가능한 파일 수를 초과했습니다.");
+    if (count >= attachmentLimit) throw new AttachmentError(400, "첨부 가능한 파일 수를 초과했습니다.");
     const key = randomUUID();
     const uploadKey = `pending/${key}`;
     const expiresAt = new Date(Date.now() + 10 * 60_000);
@@ -60,7 +66,8 @@ export async function POST(request: Request) {
       allowOverwrite: false, addRandomSuffix: false });
     const asset = await db.$transaction(async tx => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`${input.target.type}:${input.target.id}`}, 0))`;
-      if (await tx.attachment.count({ where: targetWhere(input.target) }) >= (input.target.type === "home" ? 1 : 10)) {
+      if (replacementWhere && !await tx.attachment.findFirst({where:replacementWhere,select:{id:true}})) throw new AttachmentError(404,"교체할 라벨을 찾지 못했습니다.");
+      if (await tx.attachment.count({ where: targetWhere(input.target) }) >= attachmentLimit) {
         throw new AttachmentError(400, "첨부 가능한 파일 수를 초과했습니다.");
       }
       return tx.fileAsset.create({ data: {

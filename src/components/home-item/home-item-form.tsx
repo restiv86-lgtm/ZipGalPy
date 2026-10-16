@@ -12,6 +12,7 @@ import photoStyles from "./item-photos.module.css";
 import styles from "@/app/homes/[homeId]/items/items.module.css";
 import { FormattedCurrencyInput, FormattedDateInput } from "@/components/ui/formatted-inputs";
 import { formatDateForInput, parseCurrencyValue } from "@/lib/forms/format";
+import type {ItemImage} from "@/lib/attachments/item-photo-draft";
 
 const categories = { APPLIANCE: "가전", FURNITURE: "가구", KITCHEN: "주방", HOUSEHOLD: "생활용품", DIGITAL: "디지털", HOBBY: "취미", CHILDCARE: "육아", OTHER: "기타" };
 const statuses = { USING: "사용중", STORED: "보관중", REPAIRING: "수리중", SOLD: "판매완료", GIVEN_AWAY: "나눔완료", DISPOSED: "폐기" };
@@ -23,24 +24,28 @@ export function HomeItemForm({ homeId, item, homes = [], requireHomeSelection = 
   const [selectedHomeId, setSelectedHomeId] = useState(initialHomeId);
   const [error, setError] = useState("");
   const [busy,setBusy]=useState(false);
+  const submitLock=useRef(false);
   const photoEditor=useRef<ItemPhotoEditorHandle>(null);
   const [showLabel,setShowLabel]=useState(false);
+  const [savedImages,setSavedImages]=useState<ItemImage[]>([]);
   const [savedItem,setSavedItem]=useState<{id:string;homeId:string}|null>(null);
   const [labelForm,dispatchLabel]=useReducer(labelFormReducer,{fields:{...emptyLabelFields(),name:item?.name??"",brand:item?.brand??"",modelName:item?.modelName??"",serialNumber:item?.serialNumber??"",manufacturedAt:formatDateForInput(item?.manufacturedAt??null),category:item?.category??"APPLIANCE"},automatic:{},manual:{}});
   const fields=labelForm.fields;
   const editField=(key:keyof LabelFields,value:string)=>dispatchLabel({type:"edited",key,value});
-  const discardLabel=()=>dispatchLabel({type:"discard"});
+  const discardLabel=()=>{dispatchLabel({type:"discard"});photoEditor.current?.discardLabel();};
   function analyzedLabel(suggestions:Partial<Record<keyof LabelFields,LabelProposal>>,source:LabelAnalysisSource="photo"){dispatchLabel({type:source==="photo"?"photoAnalyzed":"analyzed",suggestions});}
   function confirmation(key:keyof LabelFields){return labelForm.automatic[key]?.confidence==="MEDIUM"?<small id={`${key}-label-check`} role="status">확인 필요 · 라벨과 비교하고 수정해 주세요.</small>:null;}
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if(busy)return;
-    if(savedItem){setBusy(true);try{await photoEditor.current?.save(savedItem.id);router.push(`/homes/${savedItem.homeId}/items/${savedItem.id}`);router.refresh();}catch{setError("물건 정보는 저장됐지만 사진 변경사항 일부가 반영되지 않았습니다. 사진 저장을 재시도하거나 저장된 물건으로 이동해 주세요.");}finally{setBusy(false);}return;}
+    if(busy||submitLock.current)return;
+    submitLock.current=true;setBusy(true);
+    try{await photoEditor.current?.prepare();}catch(error){setError(error instanceof Error?error.message:"사진을 확인해 주세요.");submitLock.current=false;setBusy(false);return;}
+    if(savedItem){setBusy(true);try{await photoEditor.current?.save(savedItem.id);router.push(`/homes/${savedItem.homeId}/items/${savedItem.id}`);router.refresh();}catch(error){setError("물건 정보는 저장됐지만 사진 변경사항 일부가 반영되지 않았습니다. 사진 저장을 재시도하거나 저장된 물건으로 이동해 주세요."+(error instanceof Error?" "+error.message:""));}finally{setBusy(false);submitLock.current=false;}return;}
     const form = new FormData(event.currentTarget);
     const targetHomeId = String(form.get("targetHomeId") ?? selectedHomeId);
     const requestHomeId = item ? homeId : targetHomeId;
-    if (!requestHomeId) { setError("물건을 등록할 집을 선택해 주세요."); return; }
+    if (!requestHomeId) { setError("물건을 등록할 집을 선택해 주세요.");setBusy(false);submitLock.current=false;return; }
     setBusy(true);setError("");
     try {
     const body = { ...Object.fromEntries(form), targetHomeId, purchasePrice: parseCurrencyValue(String(form.get("purchasePrice") ?? "")), createExpense: form.get("createExpense") === "on" };
@@ -48,18 +53,18 @@ export function HomeItemForm({ homeId, item, homes = [], requireHomeSelection = 
     const data = await response.json();
     if (!response.ok) { setError(data.message); return; }
     const saved={id:item?.id??data.item.id,homeId:data.item.homeId??requestHomeId};setSavedItem(saved);
-    try{await photoEditor.current?.save(saved.id);}catch{setError("물건 정보는 저장됐지만 사진 변경사항 일부가 반영되지 않았습니다. 사진 저장을 재시도하거나 저장된 물건으로 이동해 주세요.");return;}
+    try{await photoEditor.current?.save(saved.id);}catch(error){setError("물건 정보는 저장됐지만 사진 변경사항 일부가 반영되지 않았습니다. 사진 저장을 재시도하거나 저장된 물건으로 이동해 주세요."+(error instanceof Error?" "+error.message:""));return;}
     router.push(`/homes/${data.item.homeId ?? requestHomeId}/items/${item?.id ?? data.item.id}`);
     router.refresh();
     } catch {setError("요청을 처리하지 못했습니다. 입력 내용을 확인하고 다시 시도해 주세요.");}
-    finally {setBusy(false);}
+    finally {setBusy(false);submitLock.current=false;}
   }
 
   return <form className={styles.form} onSubmit={submit}>
-    <ItemPhotoEditor ref={photoEditor} itemId={item?.id} disabled={busy||!!savedItem}>
+    <ItemPhotoEditor ref={photoEditor} itemId={item?.id} disabled={busy||!!savedItem} onImagesChange={setSavedImages} onOpenLabel={()=>setShowLabel(true)}>
       <button type="button" className={photoStyles.labelToggle} disabled={busy||!!savedItem} aria-expanded={showLabel} onClick={()=>{if(showLabel)discardLabel();setShowLabel(!showLabel);}}><span>제품 라벨 촬영/분석</span><span aria-hidden="true">{showLabel?"−":"＋"}</span></button>
       <small className={photoStyles.labelHint}>라벨 인식을 누르면 모델명·제조사를 사진의 인식값으로 바꿉니다. 인식되지 않은 항목은 유지하며, 저장 전 수정할 수 있어요.</small>
-      {showLabel&&<ProductLabelCapture onAnalyzed={analyzedLabel} onAnalysisStarted={()=>dispatchLabel({type:"photoStarted"})} onDiscard={discardLabel} disabled={busy||!!savedItem}/>}
+      {showLabel&&<ProductLabelCapture onAnalyzed={analyzedLabel} onAnalysisStarted={()=>dispatchLabel({type:"photoStarted"})} onDiscard={discardLabel} onFileSelected={async(file,sourceId)=>{await photoEditor.current?.selectLabel(file,sourceId);}} savedImages={savedImages} disabled={busy||!!savedItem}/>}
     </ItemPhotoEditor>
     {homes.length > 0 && <>
       <label htmlFor="targetHomeId">{item ? "물건이 있는 집" : "어느 집의 물건인가요? *"}</label>

@@ -12,7 +12,7 @@ async function api(url: string, options?: RequestInit) {
   if (!response.ok) throw new Error(data.error || "첨부파일 요청에 실패했습니다.");
   return data;
 }
-const purposes = { PHOTO: "사진", BEFORE: "수리 전", AFTER: "수리 후", RECEIPT: "영수증", WARRANTY: "보증서", QUOTE: "견적서", CONTRACT: "계약서", DOCUMENT: "문서", COVER: "대표사진" };
+const purposes = { PHOTO: "사진", LABEL: "제품 라벨", BEFORE: "수리 전", AFTER: "수리 후", RECEIPT: "영수증", WARRANTY: "보증서", QUOTE: "견적서", CONTRACT: "계약서", DOCUMENT: "문서", COVER: "대표사진" };
 
 export function AttachmentPanel({ target, editable = true, sourceItemId, documentsOnly = false }: {
   target: AttachmentTarget; editable?: boolean; sourceItemId?: string | null; documentsOnly?: boolean;
@@ -34,7 +34,7 @@ export function AttachmentPanel({ target, editable = true, sourceItemId, documen
       .then(data => { if (active) setFiles(data.files); })
       .catch(error => { if (active) setMessage(error.message); });
     if (sourceItemId && editable) api(`/api/attachments?type=item&id=${encodeURIComponent(sourceItemId)}`)
-      .then(data => { if (active) setSources(data.files.filter((file: FileEntry) => file.mimeType.startsWith("image/"))); })
+      .then(data => { if (active) setSources(data.files.filter((file: FileEntry) => file.mimeType.startsWith("image/")&&file.purpose!=="LABEL")); })
       .catch(() => undefined);
     return () => { active = false; };
   }, [type, id, editable, sourceItemId]);
@@ -73,13 +73,13 @@ export function AttachmentPanel({ target, editable = true, sourceItemId, documen
     <div className={styles.grid}>{files.filter(file=>!documentsOnly||file.mimeType==="application/pdf").map(file => <article className={styles.file} key={file.id}>
       <a href={file.contentUrl} target="_blank" rel="noopener noreferrer" aria-label={`${file.fileName} 열기`}>
         {file.mimeType.startsWith("image/") ? <Image src={file.contentUrl} alt={file.fileName} width={320} height={220} unoptimized /> : <span className={styles.pdf}>PDF 다운로드</span>}
-        <strong>{file.fileName}</strong>
+        <strong>{file.purpose==="LABEL"?"제품 라벨 · ":""}{file.fileName}</strong>
       </a><small>{purposes[file.purpose as keyof typeof purposes] ?? "첨부"} · {(file.byteSize / 1024 / 1024).toFixed(1)}MB</small>
       {editable && <button type="button" disabled={busy} onClick={() => remove(file)}>첨부 삭제</button>}
     </article>)}</div>
     {editable && <div className={styles.actions}>
       {type !== "home" && type !== "marketplace" && <label>첨부 용도<select value={purpose} onChange={event => setPurpose(event.target.value)} disabled={busy}>
-        {Object.entries(purposes).filter(([key]) => key !== "COVER").map(([key, text]) => <option key={key} value={key}>{text}</option>)}
+        {Object.entries(purposes).filter(([key]) => key !== "COVER"&&(key!=="LABEL"||type==="item"&&!documentsOnly)).map(([key, text]) => <option key={key} value={key}>{text}</option>)}
       </select></label>}
       <label htmlFor={inputId}>파일 선택<input id={inputId} type="file" disabled={busy} accept={documentsOnly?".pdf":type === "home" || type === "marketplace" ? ".jpg,.jpeg,.png,.webp" : ".jpg,.jpeg,.png,.webp,.pdf"}
         onChange={event => { const file = event.target.files?.[0]; if (file) void upload(file); event.target.value = ""; }} /></label>

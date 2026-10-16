@@ -19,7 +19,7 @@ const ocr=`export const pending=[];export const browserLabelOcr={recognize(file,
 const stubs={
   hooks,ocr,
   jsx:`export const Fragment='fragment';export const jsx=(type,props,key)=>({type,props:props??{},key});export const jsxs=jsx;`,
-  navigation:`export const useRouter=()=>({push(){throw Error('Unexpected navigation');},refresh(){throw Error('Unexpected refresh');}});`,
+  navigation:`export const useRouter=()=>({push(){},refresh(){}});`,
   link:`export default 'link-stub';`,
   image:`export default 'img';`,
   photos:`export const ItemPhotoEditor='photo-editor-stub';`,
@@ -102,5 +102,26 @@ try{
     console.log(`PASS: real ${mode} form/capture handlers, prior manual overwrite, photo replacement, reversed async completion, missing-brand preservation, exact undo, pending cancel, post-analysis edits, unrelated date/price/memo preservation`);
   }
   assert.equal(networkCalls,0);
+  const NativeFormData=globalThis.FormData;
+  globalThis.FormData=class{values=new Map([['targetHomeId','HOME'],['name','LOCAL TEST'],['category','APPLIANCE'],['purchasePrice','1,234']]);get(key){return this.values.get(key)??null;}[Symbol.iterator](){return this.values[Symbol.iterator]();}};
+  try{
+    for(const mode of ['create','edit']){
+      const item=mode==='edit'?{id:'ITEM',name:'LOCAL TEST',category:'APPLIANCE',brand:null,modelName:null,purchaseDate:null,purchasePrice:null,warrantyUntil:null,memo:null,status:'USING'}:undefined;
+      const props={homeId:'HOME',item},form=()=>api.render('storage-'+mode,api.HomeItemForm,props);
+      let staged=0,discarded=0,saveCalls=0,requests=0,release;
+      const gate=new Promise(resolve=>{release=resolve;});let prepareCalls=0;
+      find(form(),node=>node.type==='photo-editor-stub').props.ref.current={selectLabel:async()=>{staged++;},discardLabel:()=>{discarded++;},prepare:async()=>{if(++prepareCalls===1)await gate;},save:async()=>{if(++saveCalls===1)throw Error('mock photo failure');}};
+      find(form(),node=>node.type==='button'&&node.props['aria-expanded']===false).props.onClick();
+      const capture=find(form(),node=>node.type===api.ProductLabelCapture).props;
+      await capture.onFileSelected(new File(['local'],'local.jpg',{type:'image/jpeg'}));assert.equal(staged,1);assert.equal(requests,0);capture.onDiscard();assert.equal(discarded,1);
+      await capture.onFileSelected(new File(['local'],'local.jpg',{type:'image/jpeg'}));
+      globalThis.fetch=async(url,options)=>{assert.equal(url,`/api/homes/HOME/items${item?'/ITEM':''}`);assert.equal(options.method,item?'PATCH':'POST');requests++;return Response.json({item:{id:item?.id??'CREATED',homeId:'HOME'}});};
+      const event={preventDefault(){},currentTarget:{}};
+      const first=form().props.onSubmit(event);await form().props.onSubmit(event);assert.equal(requests,0,'double submit blocked while preparing photos');release();await first;
+      assert.equal(requests,1);assert.equal(saveCalls,1);
+      await form().props.onSubmit(event);assert.equal(requests,1,'photo retry must not recreate/patch item');assert.equal(saveCalls,2);
+      console.log(`PASS: real ${mode} form forwards label file/undo, does not save on selection, blocks double submit, and retries photo save without duplicating item write; HTTP and photo store mocked`);
+    }
+  }finally{globalThis.FormData=NativeFormData;}
 }finally{globalThis.fetch=originalFetch;}
-console.log('PASS: no DOM/browser engine, OCR/Next effects isolated; no network, external AI, item save or navigation');
+console.log('PASS: no DOM/browser engine, OCR/Next effects isolated; all HTTP/photo writes mocked; no real network, external AI or item save');

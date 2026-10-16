@@ -11,7 +11,7 @@ export async function POST(request: Request) {
     const { attachmentId, marketplacePostId } = parsed.data;
     const db = getPrisma();
     if (!await canAccessTarget({ type: "marketplace", id: marketplacePostId }, userId, true)) throw new AttachmentError(404, "장터글을 찾을 수 없습니다.");
-    const source = await db.attachment.findFirst({ where: { id: attachmentId, homeItem: { home: { userId } },
+    const source = await db.attachment.findFirst({ where: { id: attachmentId, purpose:{not:"LABEL"}, homeItem: { home: { userId } },
       fileAsset: { status: "READY", storeId: process.env.BLOB_STORE_ID, mimeType: { startsWith: "image/" } } } });
     if (!source?.fileAssetId) throw new AttachmentError(404, "사진을 찾을 수 없습니다.");
     await db.$transaction(async tx => {
